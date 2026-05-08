@@ -11,6 +11,7 @@
       width: 100%; height: 100%;
       background: #000;
       overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     #slideshow {
@@ -46,7 +47,6 @@
       bottom: 16px;
       right: 16px;
       color: rgba(255,255,255,0.35);
-      font-family: sans-serif;
       font-size: 13px;
       pointer-events: none;
       user-select: none;
@@ -59,10 +59,87 @@
       align-items: center;
       justify-content: center;
       color: rgba(255,255,255,0.6);
-      font-family: sans-serif;
       font-size: 18px;
       text-align: center;
       padding: 24px;
+    }
+
+    /* ── Timeline ─────────────────────────────────────────────────────── */
+    #timeline {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 14px 28px 18px;
+      background: linear-gradient(to top,
+                  rgba(0,0,0,0.78) 0%,
+                  rgba(0,0,0,0.55) 60%,
+                  rgba(0,0,0,0) 100%);
+      color: #fff;
+      pointer-events: none;
+      user-select: none;
+      transform: translateY(120%);
+      opacity: 0;
+      transition: transform 0.4s ease, opacity 0.4s ease;
+    }
+    #timeline.visible { transform: translateY(0); opacity: 1; }
+
+    #tl-track {
+      position: relative;
+      height: 4px;
+      background: rgba(255,255,255,0.18);
+      border-radius: 2px;
+      margin: 30px 0 12px;
+    }
+
+    .tl-marker {
+      position: absolute;
+      top: 50%;
+      width: 4px;
+      height: 4px;
+      margin-left: -2px;
+      margin-top: -2px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.55);
+      transition: transform 0.25s ease, background 0.25s ease;
+    }
+    .tl-marker.active {
+      width: 14px;
+      height: 14px;
+      margin-left: -7px;
+      margin-top: -7px;
+      background: #ffd84a;
+      box-shadow: 0 0 12px rgba(255,216,74,0.6);
+      z-index: 2;
+    }
+
+    #tl-age {
+      position: absolute;
+      bottom: 16px;
+      transform: translateX(-50%);
+      background: rgba(255,216,74,0.95);
+      color: #000;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      white-space: nowrap;
+      transition: left 0.25s ease;
+      pointer-events: none;
+    }
+    #tl-age::after {
+      content: "";
+      position: absolute;
+      left: 50%; bottom: -4px;
+      transform: translateX(-50%) rotate(45deg);
+      width: 8px; height: 8px;
+      background: rgba(255,216,74,0.95);
+    }
+
+    #tl-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.3px;
     }
   </style>
 </head>
@@ -76,30 +153,52 @@
     <div id="slideshow">
       <% @images.each_with_index do |img, i| %>
         <div class="slide <%= 'active' if i == 0 %>" data-index="<%= i %>">
-          <img src="<%= img %>" alt="Slide <%= i + 1 %>" loading="<%= i < 3 ? 'eager' : 'lazy' %>">
+          <img src="<%= img[:url] %>" alt="Slide <%= i + 1 %>" loading="<%= i < 3 ? 'eager' : 'lazy' %>">
         </div>
       <% end %>
     </div>
 
     <div id="status">&#9654; 1 / <%= @images.size %></div>
 
+    <!-- Timeline overlay (hidden until birthday mode is on with a date set) -->
+    <div id="timeline" aria-hidden="true">
+      <div id="tl-track">
+        <div id="tl-age" hidden></div>
+      </div>
+      <div id="tl-labels">
+        <span id="tl-start"></span>
+        <span id="tl-end">today</span>
+      </div>
+    </div>
+
+    <script type="application/json" id="slides-data">
+      <%= @images.to_json.html_safe %>
+    </script>
+
     <script type="module">
       import { subscribeChannel } from "/javascript/cable.js";
 
+      // ── Slide data + state ─────────────────────────────────────────────
+      const SLIDES = JSON.parse(document.getElementById("slides-data").textContent);
       const slides      = document.querySelectorAll(".slide");
       const statusEl    = document.getElementById("status");
       const totalSlides = slides.length;
 
       let currentIndex = 0;
-      let delay        = 5000;   // ms
+      let delay        = 5000;
       let playing      = true;
       let timer        = null;
 
+      let birthdayMode = <%= @settings['birthday_mode'] ? 'true' : 'false' %>;
+      let birthday     = <%= @settings['birthday'].to_s.empty? ? 'null' : @settings['birthday'].to_json.html_safe %>;
+
+      // ── Slide playback ─────────────────────────────────────────────────
       function showSlide(index) {
         slides[currentIndex].classList.remove("active");
         currentIndex = ((index % totalSlides) + totalSlides) % totalSlides;
         slides[currentIndex].classList.add("active");
         updateStatus();
+        updateTimelineActive();
       }
 
       function updateStatus() {
@@ -114,8 +213,102 @@
         }, delay);
       }
 
-      startTimer();
+      // ── Timeline ───────────────────────────────────────────────────────
+      const timelineEl = document.getElementById("timeline");
+      const trackEl    = document.getElementById("tl-track");
+      const ageEl      = document.getElementById("tl-age");
+      const startLbl   = document.getElementById("tl-start");
 
+      // Build markers once (positions only depend on dates and birthday)
+      let markers = []; // DOM nodes, indexed parallel to SLIDES
+
+      function rebuildTimeline() {
+        // Remove existing markers
+        for (const m of markers) m.remove();
+        markers = [];
+
+        const haveBirthday = birthdayMode && birthday;
+        if (!haveBirthday) {
+          timelineEl.classList.remove("visible");
+          timelineEl.setAttribute("aria-hidden", "true");
+          return;
+        }
+
+        const start = new Date(birthday + "T00:00:00");
+        const end   = new Date();
+        const span  = end - start;
+        if (span <= 0) {
+          timelineEl.classList.remove("visible");
+          return;
+        }
+
+        startLbl.textContent = formatDate(start);
+
+        for (const slide of SLIDES) {
+          const m = document.createElement("div");
+          m.className = "tl-marker";
+          if (slide.date) {
+            const d = new Date(slide.date);
+            const pct = clamp((d - start) / span, 0, 1) * 100;
+            m.style.left = pct + "%";
+          } else {
+            m.style.display = "none";
+          }
+          trackEl.appendChild(m);
+          markers.push(m);
+        }
+
+        timelineEl.classList.add("visible");
+        timelineEl.setAttribute("aria-hidden", "false");
+        updateTimelineActive();
+      }
+
+      function updateTimelineActive() {
+        if (!birthdayMode || !birthday) return;
+        const slide = SLIDES[currentIndex];
+
+        markers.forEach((m, i) => m.classList.toggle("active", i === currentIndex));
+
+        if (slide && slide.date) {
+          const start = new Date(birthday + "T00:00:00");
+          const taken = new Date(slide.date);
+          const pct   = clamp((taken - start) / (new Date() - start), 0, 1) * 100;
+          ageEl.textContent = ageAt(start, taken);
+          ageEl.style.left  = pct + "%";
+          ageEl.hidden      = false;
+        } else {
+          ageEl.hidden = true;
+        }
+      }
+
+      // ── Helpers ────────────────────────────────────────────────────────
+      function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+      function formatDate(d) {
+        return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      }
+
+      // Whole months between two dates, with day-of-month adjustment.
+      function monthsBetween(from, to) {
+        let m = (to.getFullYear() - from.getFullYear()) * 12 +
+                (to.getMonth() - from.getMonth());
+        if (to.getDate() < from.getDate()) m -= 1;
+        return Math.max(0, m);
+      }
+
+      // 0–24 months -> "X months", otherwise "Y years"
+      function ageAt(birthdate, when) {
+        const months = monthsBetween(birthdate, when);
+        if (months < 24) return months === 1 ? "1 month" : `${months} months`;
+        const years = Math.floor(months / 12);
+        return years === 1 ? "1 year" : `${years} years`;
+      }
+
+      // ── Boot ───────────────────────────────────────────────────────────
+      startTimer();
+      rebuildTimeline();
+
+      // ── Cable ──────────────────────────────────────────────────────────
       subscribeChannel("SlideshowChannel", {
         received(data) {
           switch (data.action) {
@@ -140,6 +333,16 @@
             case "set_delay":
               delay = data.delay * 1000;
               if (playing) startTimer();
+              break;
+
+            case "set_birthday_mode":
+              birthdayMode = !!data.enabled;
+              rebuildTimeline();
+              break;
+
+            case "set_birthday":
+              birthday = data.birthday || null;
+              rebuildTimeline();
               break;
           }
         }
