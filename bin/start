@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Bootstrap and start the slideshow server.
+# Idempotent: safe to re-run.
+
+set -e
+cd "$(dirname "$0")/.."
+
+# 1. Make sure bundler is available
+if ! command -v bundle >/dev/null 2>&1; then
+  echo "Installing bundler..."
+  gem install bundler
+fi
+
+# 2. Install gems if Gemfile.lock is missing or out of date
+if [ ! -f Gemfile.lock ] || ! bundle check >/dev/null 2>&1; then
+  echo "Installing Ruby gems..."
+  bundle install
+fi
+
+# 3. Create database the first time
+if [ ! -f db/development.sqlite3 ]; then
+  echo "Creating database..."
+  bundle exec rails db:create
+fi
+
+# 4. Print local IPs so you can find the right URL on your phone / TV
+echo
+echo "----------------------------------------------------------"
+echo "  Slideshow:  http://<your-ip>:3000/"
+echo "  Remote:     http://<your-ip>:3000/remote"
+echo
+echo "  Likely IPs on this machine:"
+if command -v ipconfig >/dev/null 2>&1; then
+  for iface in en0 en1 en2; do
+    ip=$(ipconfig getifaddr "$iface" 2>/dev/null || true)
+    [ -n "$ip" ] && echo "    $iface: $ip"
+  done
+elif command -v hostname >/dev/null 2>&1; then
+  hostname -I 2>/dev/null | tr ' ' '\n' | sed '/^$/d' | sed 's/^/    /'
+fi
+echo "----------------------------------------------------------"
+echo
+
+# 5. Boot
+exec bundle exec rails server -b 0.0.0.0 -p "${PORT:-3000}"

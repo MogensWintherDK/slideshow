@@ -1,0 +1,46 @@
+# Bundler / dependencies
+/.bundle/
+/vendor/bundle
+/lib/bundler/man/
+
+# Logs and temp files
+/log/*
+!/log/.keep
+/tmp/*
+!/tmp/.keep
+/storage/*
+!/storage/.keep
+
+# SQLite databases
+/db/*.sqlite3
+/db/*.sqlite3-journal
+/db/*.sqlite3-*
+
+# Don't commit credentials
+/config/master.key
+/config/credentials/*.key
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
+# Slides — your photo collection probably shouldn't be in git
+/public/slides/*
+!/public/slides/.keep
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Editor / IDE
+/.idea/
+/.vscode/
+*.iml
+
+# Spring / Rails caches
+/.byebug_history
+/.rspec_status
