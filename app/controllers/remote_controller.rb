@@ -18,6 +18,8 @@ class RemoteController < ApplicationController
     case name
     when "play", "pause", "reset"
       # nothing extra to add
+    when "skip"
+      payload[:delta] = params[:delta].to_i
     when "set_delay"
       delay = params[:delay].to_i
       delay = 5 if delay < 1

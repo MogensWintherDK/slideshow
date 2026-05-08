@@ -68,7 +68,7 @@
     #timeline {
       position: fixed;
       left: 0; right: 0; bottom: 0;
-      padding: 14px 28px 18px;
+      padding: 14px 100px 18px;
       background: linear-gradient(to top,
                   rgba(0,0,0,0.78) 0%,
                   rgba(0,0,0,0.55) 60%,
@@ -328,6 +328,11 @@
               playing = true;
               showSlide(0);
               startTimer();
+              break;
+
+            case "skip":
+              showSlide(currentIndex + (parseInt(data.delta, 10) || 0));
+              if (playing) startTimer();
               break;
 
             case "set_delay":

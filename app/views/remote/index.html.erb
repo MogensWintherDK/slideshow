@@ -148,6 +148,26 @@
       background: rgba(10,132,255,0.1);
     }
 
+    /* Skip-by-N row */
+    .skip-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .skip-btn {
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.1s, transform 0.08s;
+    }
+    .skip-btn:active { transform: scale(0.95); background: var(--border); }
+
     /* Birthday-mode controls */
     .toggle-row {
       display: flex;
@@ -220,6 +240,12 @@
       <span id="pp-icon">&#9208;</span>
       <span id="pp-label">Pause</span>
     </button>
+    <div class="skip-row">
+      <button class="skip-btn" data-delta="-100">&minus;100</button>
+      <button class="skip-btn" data-delta="-10">&minus;10</button>
+      <button class="skip-btn" data-delta="10">+10</button>
+      <button class="skip-btn" data-delta="100">+100</button>
+    </div>
   </div>
 
   <div class="card">
@@ -323,6 +349,12 @@
     document.getElementById("reset-btn").addEventListener("click", () => {
       setPlaying(true);
       send({ action_name: "reset" });
+    });
+
+    document.querySelectorAll(".skip-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        send({ action_name: "skip", delta: parseInt(btn.dataset.delta, 10) });
+      });
     });
 
     document.getElementById("delay-up").addEventListener("click",   () => setDelay(delay + 1));
