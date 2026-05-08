@@ -191,6 +191,7 @@
 
       let birthdayMode = <%= @settings['birthday_mode'] ? 'true' : 'false' %>;
       let birthday     = <%= @settings['birthday'].to_s.empty? ? 'null' : @settings['birthday'].to_json.html_safe %>;
+      let playMode     = <%= @settings['play_mode'].to_s.to_json.html_safe %>; // "linear" | "random"
 
       // ── Slide playback ─────────────────────────────────────────────────
       function showSlide(index) {
@@ -206,10 +207,19 @@
         statusEl.textContent = `${icon} ${currentIndex + 1} / ${totalSlides}`;
       }
 
+      function nextIndex() {
+        if (playMode === "random" && totalSlides > 1) {
+          let n;
+          do { n = Math.floor(Math.random() * totalSlides); } while (n === currentIndex);
+          return n;
+        }
+        return currentIndex + 1;
+      }
+
       function startTimer() {
         clearInterval(timer);
         timer = setInterval(() => {
-          if (playing) showSlide(currentIndex + 1);
+          if (playing) showSlide(nextIndex());
         }, delay);
       }
 
@@ -348,6 +358,10 @@
             case "set_birthday":
               birthday = data.birthday || null;
               rebuildTimeline();
+              break;
+
+            case "set_play_mode":
+              playMode = data.mode === "random" ? "random" : "linear";
               break;
           }
         }

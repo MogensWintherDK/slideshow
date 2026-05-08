@@ -9,7 +9,8 @@ module SettingsStore
   MUTEX    = Mutex.new
   DEFAULTS = {
     "birthday_mode" => false,
-    "birthday"      => nil   # ISO date string, e.g. "2018-04-12"
+    "birthday"      => nil,    # ISO date string, e.g. "2018-04-12"
+    "play_mode"     => "linear" # "linear" or "random"
   }.freeze
 
   def read

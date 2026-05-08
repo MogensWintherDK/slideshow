@@ -33,6 +33,11 @@ class RemoteController < ApplicationController
       birthday = raw.empty? ? nil : raw
       SettingsStore.write("birthday" => birthday)
       payload[:birthday] = birthday
+    when "set_play_mode"
+      mode = params[:mode].to_s
+      mode = "linear" unless %w[linear random].include?(mode)
+      SettingsStore.write("play_mode" => mode)
+      payload[:mode] = mode
     else
       return head :bad_request
     end

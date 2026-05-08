@@ -168,6 +168,31 @@
     }
     .skip-btn:active { transform: scale(0.95); background: var(--border); }
 
+    /* Segmented control (Linear / Random) */
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      background: #2c2c2e;
+      border-radius: 10px;
+      padding: 4px;
+    }
+    .seg-btn {
+      height: 40px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .seg-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
     /* Birthday-mode controls */
     .toggle-row {
       display: flex;
@@ -245,6 +270,16 @@
       <button class="skip-btn" data-delta="-10">&minus;10</button>
       <button class="skip-btn" data-delta="10">+10</button>
       <button class="skip-btn" data-delta="100">+100</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Play Mode</div>
+    <div class="segmented" id="play-mode">
+      <button class="seg-btn <%= 'active' if @settings['play_mode'] == 'linear' %>"
+              data-mode="linear">Linear</button>
+      <button class="seg-btn <%= 'active' if @settings['play_mode'] == 'random' %>"
+              data-mode="random">Random</button>
     </div>
   </div>
 
@@ -349,6 +384,15 @@
     document.getElementById("reset-btn").addEventListener("click", () => {
       setPlaying(true);
       send({ action_name: "reset" });
+    });
+
+    // ── Play mode (linear / random) ──────────────────────────────────────
+    document.querySelectorAll("#play-mode .seg-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#play-mode .seg-btn")
+          .forEach(b => b.classList.toggle("active", b === btn));
+        send({ action_name: "set_play_mode", mode: btn.dataset.mode });
+      });
     });
 
     document.querySelectorAll(".skip-btn").forEach(btn => {
