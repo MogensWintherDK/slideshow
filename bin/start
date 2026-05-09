@@ -23,7 +23,11 @@ if [ ! -f db/development.sqlite3 ]; then
   bundle exec rails db:create
 fi
 
-# 4. Print local IPs so you can find the right URL on your phone / TV
+# 4. Apply any pending migrations (creates settings/locations tables, etc.)
+echo "Applying migrations..."
+bundle exec rails db:migrate
+
+# 5. Print local IPs so you can find the right URL on your phone / TV
 echo
 echo "----------------------------------------------------------"
 echo "  Slideshow:  http://<your-ip>:3000/"
@@ -41,5 +45,5 @@ fi
 echo "----------------------------------------------------------"
 echo
 
-# 5. Boot
+# 6. Boot
 exec bundle exec rails server -b 0.0.0.0 -p "${PORT:-3000}"
