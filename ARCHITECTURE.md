@@ -256,13 +256,14 @@ itself, but it ignores the echo).
 |---|---|---|
 | `play` | — | Resume auto-advance |
 | `pause` | — | Stop auto-advance |
-| `reset` | — | Go to playlist index 0 |
+| `reset` | — | Jump to the first image of the album containing the current slide |
 | `skip` | `{delta: int}` | Move playlist index by ±N |
 | `set_delay` | `{delay: int seconds}` | Change auto-advance interval |
 | `set_play_mode` | `{mode: "linear"\|"random"}` | Change advance policy |
 | `set_birthday_mode` | `{enabled: bool}` | Show/hide timeline |
 | `set_birthday` | `{birthday: "YYYY-MM-DD" \| null}` | Set timeline anchor |
 | `set_album` | `{album_id: int \| null}` | Change playlist scope; slideshow reloads |
+| `albums_changed` | `{albums: [{id, name, type}, ...]}` | Pushed by Indexer when albums are added or removed; the remote rebuilds its album selector in place |
 | `location_resolved` | `{key, location}` | Pushed by Geocoder when a coord resolves |
 
 ## File layout (just the parts that matter)

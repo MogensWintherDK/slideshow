@@ -70,6 +70,7 @@ class SlideshowController < ApplicationController
         taken_at:     img.taken_at&.iso8601,
         location_key: img.location_key,
         location:     loc && { "country" => loc.country, "area" => loc.area },
+        position:     img.position,    # 0-based, within the image's album
         album:        { id: img.album_id, name: img.album.name, type: img.album.album_type }
       }
     end

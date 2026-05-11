@@ -447,13 +447,70 @@
     });
 
     // ── Album selection ─────────────────────────────────────────────────
-    document.querySelectorAll("#album-list .album-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#album-list .album-btn")
-          .forEach(b => b.classList.toggle("active", b === btn));
-        send({ action_name: "set_album", album_id: btn.dataset.albumId });
+    const albumList = document.getElementById("album-list");
+
+    function wireAlbumButtons() {
+      albumList.querySelectorAll(".album-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          albumList.querySelectorAll(".album-btn")
+            .forEach(b => b.classList.toggle("active", b === btn));
+          send({ action_name: "set_album", album_id: btn.dataset.albumId });
+        });
       });
-    });
+    }
+
+    function currentlySelectedAlbum() {
+      const active = albumList.querySelector(".album-btn.active");
+      return active ? active.dataset.albumId : "";
+    }
+
+    // Rebuild the album buttons from a fresh list pushed over Action Cable.
+    function rebuildAlbumList(albums) {
+      const selected = currentlySelectedAlbum();
+      albumList.innerHTML = "";
+
+      const allBtn = document.createElement("button");
+      allBtn.className = "album-btn" + (selected === "" ? " active" : "");
+      allBtn.dataset.albumId = "";
+      allBtn.textContent = "All albums";
+      albumList.appendChild(allBtn);
+
+      for (const a of albums) {
+        const btn = document.createElement("button");
+        btn.className = "album-btn" + (String(a.id) === selected ? " active" : "");
+        btn.dataset.albumId = String(a.id);
+
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = a.name;
+        btn.appendChild(nameSpan);
+
+        if (a.type && a.type !== "local") {
+          const typeSpan = document.createElement("span");
+          typeSpan.className = "album-type";
+          typeSpan.textContent = a.type;
+          btn.appendChild(typeSpan);
+        }
+        albumList.appendChild(btn);
+      }
+
+      if (albums.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "album-empty";
+        empty.innerHTML = 'No albums yet — drop JPEGs into <code>slides/</code>.';
+        albumList.appendChild(empty);
+      }
+
+      wireAlbumButtons();
+
+      // If the album we had selected has just vanished, fall back to "All".
+      const stillExists =
+        selected === "" || albums.some(a => String(a.id) === selected);
+      if (!stillExists) {
+        send({ action_name: "set_album", album_id: "" });
+      }
+    }
+
+    wireAlbumButtons();
 
     // ── Play mode (linear / random) ──────────────────────────────────────
     document.querySelectorAll("#play-mode .seg-btn").forEach(btn => {
@@ -499,7 +556,11 @@
     subscribeChannel("SlideshowChannel", {
       connected()    { dot.className = "connected"; label.textContent = "Connected"; },
       disconnected() { dot.className = "";          label.textContent = "Disconnected"; },
-      received()     {}
+      received(data) {
+        if (data && data.action === "albums_changed" && Array.isArray(data.albums)) {
+          rebuildAlbumList(data.albums);
+        }
+      }
     });
   </script>
 </body>

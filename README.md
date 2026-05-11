@@ -43,7 +43,7 @@ If you had photos in `public/slides/` from earlier versions, `bin/start` moves t
 | Album | Pick which album to play, or "All albums" |
 | Play / Pause | Toggles automatic advancement |
 | -100 / -10 / +10 / +100 | Jump forwards or backwards |
-| Reset | Returns to image 1 and resumes playing |
+| Reset | Jumps to the first image of the current album and resumes playing |
 | Play Mode | Switch between Linear and Random advance |
 | + / − | Adjusts delay by 1 second per tap |
 | 3s / 5s / 10s / 15s / 30s | Quick preset delay buttons |

@@ -46,9 +46,11 @@ module Indexer
   # from the admin "Reindex now" button.
   def run
     ActiveRecord::Base.connection_pool.with_connection do
+      @album_changes = 0
       sync_default_album
       sync_subfolder_albums
-      remove_orphan_albums
+      @album_changes += remove_orphan_albums
+      broadcast_albums_changed if @album_changes.positive?
     end
     @last_run_at = Time.current
     @last_error  = nil
@@ -98,9 +100,12 @@ module Indexer
   end
 
   def upsert_album(name, path)
-    album = Album.find_or_initialize_by(album_type: "local", path: path)
+    album   = Album.find_or_initialize_by(album_type: "local", path: path)
+    was_new = album.new_record?
     album.name = name if album.name != name
     album.save! if album.changed?
+    @album_changes ||= 0
+    @album_changes += 1 if was_new
     album
   end
 
@@ -109,14 +114,12 @@ module Indexer
   end
 
   def sync_album_files(album, dir, files)
-    # Insert / update positions
-    files.each_with_index do |filename, idx|
+    # ── Pass 1: make sure every file has an Image row with EXIF data ──
+    files.each do |filename|
       image      = Image.find_or_initialize_by(album_id: album.id, filename: filename)
       file_mtime = File.mtime(dir.join(filename)) rescue nil
 
       # New row OR file has changed since we last read it → re-read EXIF.
-      # We compare against image.updated_at (which is bumped on save), so
-      # if the file is replaced on disk we pick up the new metadata next scan.
       needs_reread = image.new_record? ||
                      (file_mtime && image.updated_at && file_mtime > image.updated_at)
 
@@ -131,27 +134,51 @@ module Indexer
         end
       end
 
-      image.position = idx
-
       if image.changed?
         image.save!
       elsif needs_reread
-        # No attribute changed but the file did; bump updated_at so the
-        # browser cache buster (?v=updated_at) invalidates.
         image.touch
       end
     end
 
-    # Delete rows for files no longer on disk
+    # ── Pass 2: drop rows whose files are gone, so position renumbering
+    # below only sees what's actually on disk.
     Image.where(album_id: album.id).where.not(filename: files).delete_all
+
+    # ── Pass 3: renumber `position` in chronological order. Sort by
+    # taken_at (NULLs last) with filename as a stable tiebreaker.
+    # This is what makes the slideshow play oldest → newest and what
+    # makes "Reset" go to the chronologically first image of the album.
+    ordered = Image.where(album_id: album.id)
+                   .order(Arel.sql("taken_at IS NULL, taken_at ASC, filename ASC"))
+                   .pluck(:id)
+    ordered.each.with_index do |id, idx|
+      Image.where(id: id).where.not(position: idx).update_all(position: idx)
+    end
   end
 
   def remove_orphan_albums
+    removed = 0
     Album.local.find_each do |album|
       # Default album lives at the slides root; only delete if root is gone
       dir = album.path.present? ? SLIDES_ROOT.join(album.path) : SLIDES_ROOT
-      album.destroy unless File.directory?(dir)
+      next if File.directory?(dir)
+      album.destroy
+      removed += 1
     end
+    removed
+  end
+
+  # Push a fresh album list to subscribers so the remote can update its
+  # selector in place — no page reload needed.
+  def broadcast_albums_changed
+    albums = Album.order(:name).pluck(:id, :name, :album_type).map do |id, name, type|
+      { id: id, name: name, type: type }
+    end
+    ActionCable.server.broadcast("slideshow", {
+      action: "albums_changed",
+      albums: albums
+    })
   end
 
   def read_exif(path)

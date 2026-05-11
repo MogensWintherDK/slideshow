@@ -297,11 +297,25 @@
         });
       }
 
-      async function show(idx) {
+      // Show is async, but we want it strictly serialized. Otherwise the
+      // timer can fire while a previous show() is still awaiting the next
+      // image, the second show reads a stale currentIdx, and the displayed
+      // image starts jumping around. We chain every call onto a single
+      // promise so they run one at a time, in order.
+      let showChain = Promise.resolve();
+
+      function show(idx) {
+        const next = showChain.then(() => _show(idx)).catch((e) => {
+          console.error("show error", e);
+        });
+        showChain = next;
+        return next;
+      }
+
+      async function _show(idx) {
         if (total === 0) return;
         idx = ((idx % total) + total) % total;
 
-        // Make sure metadata for this index (and the prefetch window) is known
         const meta = await ensureLoaded(idx);
         if (!meta) return;
 
@@ -490,7 +504,17 @@
             case "pause":
               playing = false; clearInterval(timer); updateStatus(); break;
             case "reset":
-              playing = true;  show(0); startTimer(); break;
+              // Reset jumps to the start of the album that currently owns
+              // currentIdx. Because the global playlist is ordered by
+              // (album.name, image.position), the album's first playlist
+              // index is exactly currentIdx − position_within_album.
+              playing = true;
+              {
+                const target = currentMeta ? currentIdx - (currentMeta.position || 0) : 0;
+                show(Math.max(0, target));
+              }
+              startTimer();
+              break;
             case "skip":
               show(currentIdx + (parseInt(data.delta, 10) || 0));
               if (playing) startTimer();
