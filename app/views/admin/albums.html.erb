@@ -1,0 +1,31 @@
+<h2>Albums</h2>
+
+<% if @albums.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Path</th>
+        <th class="num">Images</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @albums.each do |a| %>
+        <tr>
+          <td><a href="<%= admin_album_path(a) %>"><%= a.name %></a></td>
+          <td><span class="tag <%= a.album_type %>"><%= a.album_type %></span></td>
+          <td class="mono"><%= a.path.presence || "—" %></td>
+          <td class="num"><%= a.image_count %></td>
+          <td class="mono"><%= a.created_at.strftime("%Y-%m-%d %H:%M") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <div class="card muted">
+    No albums yet. Drop JPEGs into <code><%= Image.slides_root %></code>
+    and reindex.
+  </div>
+<% end %>

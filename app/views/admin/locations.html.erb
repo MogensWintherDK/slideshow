@@ -1,0 +1,41 @@
+<h2>Locations <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;"><%= @total %> cached</span></h2>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Resolved</div>
+    <div class="value"><%= @cached_known %></div>
+    <div class="sub">country / area populated</div>
+  </div>
+  <div class="stat">
+    <div class="label">Unknown</div>
+    <div class="value"><%= @cached_unknown %></div>
+    <div class="sub">geocoded but no address</div>
+  </div>
+</div>
+
+<% if @locations.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th>Key (lat, lon)</th>
+        <th>Country</th>
+        <th>Area</th>
+        <th>Resolved at</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @locations.each do |loc| %>
+        <tr>
+          <td class="mono"><%= loc.key %></td>
+          <td><%= loc.country || "—" %></td>
+          <td><%= loc.area    || "—" %></td>
+          <td class="mono"><%= loc.resolved_at.strftime("%Y-%m-%d %H:%M") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <%= render "pagination", page: @page, total_pages: @total_pages %>
+<% else %>
+  <div class="card muted">Nothing geocoded yet — locations appear as the background worker resolves them.</div>
+<% end %>

@@ -27,6 +27,21 @@ fi
 echo "Applying migrations..."
 bundle exec rails db:migrate
 
+# 4b. One-time migration: move photos from public/slides/ → slides/.
+#     Files now live outside public/ so they are only ever reachable
+#     through the cached /slideshow/albums/:id/images/:id endpoint.
+if [ -d "public/slides" ] && [ ! -L "public/slides" ] && [ ! -e "slides" ]; then
+  if find public/slides -mindepth 1 \
+        \( -iname "*.jpg" -o -iname "*.jpeg" -o -type d \) \
+        2>/dev/null | grep -q .; then
+    echo "Moving photos: public/slides/ → slides/"
+    mv public/slides slides
+    mkdir -p public/slides
+    : > public/slides/.keep
+  fi
+fi
+mkdir -p slides
+
 # 5. Print local IPs so you can find the right URL on your phone / TV
 echo
 echo "----------------------------------------------------------"

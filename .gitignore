@@ -26,6 +26,8 @@
 !.env.example
 
 # Slides — your photo collection probably shouldn't be in git
+/slides/*
+!/slides/.keep
 /public/slides/*
 !/public/slides/.keep
 

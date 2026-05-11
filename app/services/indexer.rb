@@ -17,14 +17,20 @@ require "exifr/jpeg"
 module Indexer
   module_function
 
-  SLIDES_ROOT      = Rails.root.join("public", "slides")
+  SLIDES_ROOT      = Image.slides_root
   DEFAULT_ALBUM    = { name: "Default", path: "" }.freeze
   RESCAN_INTERVAL  = 5 * 60     # seconds
   IMAGE_GLOB       = /\.jpe?g\z/i
 
-  @started   = false
-  @mu        = Mutex.new
-  @worker    = nil
+  @started      = false
+  @mu           = Mutex.new
+  @worker       = nil
+  @last_run_at  = nil
+  @last_error   = nil
+
+  class << self
+    attr_reader :last_run_at, :last_error
+  end
 
   # ── Public API ─────────────────────────────────────────────────────────
 
@@ -36,13 +42,19 @@ module Indexer
     @worker = Thread.new { background_loop }
   end
 
-  # One-shot synchronous reindex; used at boot and from rails runner.
+  # One-shot synchronous reindex; used at boot, from rails runner, and
+  # from the admin "Reindex now" button.
   def run
     ActiveRecord::Base.connection_pool.with_connection do
       sync_default_album
       sync_subfolder_albums
       remove_orphan_albums
     end
+    @last_run_at = Time.current
+    @last_error  = nil
+  rescue => e
+    @last_error  = "#{e.class}: #{e.message}"
+    raise
   end
 
   # ── Internals ──────────────────────────────────────────────────────────
@@ -99,8 +111,16 @@ module Indexer
   def sync_album_files(album, dir, files)
     # Insert / update positions
     files.each_with_index do |filename, idx|
-      image = Image.find_or_initialize_by(album_id: album.id, filename: filename)
-      if image.new_record?
+      image      = Image.find_or_initialize_by(album_id: album.id, filename: filename)
+      file_mtime = File.mtime(dir.join(filename)) rescue nil
+
+      # New row OR file has changed since we last read it → re-read EXIF.
+      # We compare against image.updated_at (which is bumped on save), so
+      # if the file is replaced on disk we pick up the new metadata next scan.
+      needs_reread = image.new_record? ||
+                     (file_mtime && image.updated_at && file_mtime > image.updated_at)
+
+      if needs_reread
         meta = read_exif(dir.join(filename))
         image.taken_at     = meta[:date]
         image.latitude     = meta[:lat]
@@ -110,8 +130,16 @@ module Indexer
           Geocoder.resolve_async(meta[:lat], meta[:lon])
         end
       end
+
       image.position = idx
-      image.save! if image.changed?
+
+      if image.changed?
+        image.save!
+      elsif needs_reread
+        # No attribute changed but the file did; bump updated_at so the
+        # browser cache buster (?v=updated_at) invalidates.
+        image.touch
+      end
     end
 
     # Delete rows for files no longer on disk

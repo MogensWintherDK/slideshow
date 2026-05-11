@@ -6,20 +6,30 @@ covers how to *use* it; this one covers how it *works*.
 ## High-level shape
 
 ```
-┌────────────────┐     POST /remote/command       ┌────────────────┐
-│ Phone (remote) │ ──────────────────────────────▶│  Rails server  │
-└────────────────┘                                │  (Puma, dev)   │
-        ▲                                         │                │
-        │   WebSocket /cable                      │   ActionCable  │
-        │   (channel: SlideshowChannel)           │   stream:      │
-        ▼                                         │   "slideshow"  │
-┌────────────────┐  WS broadcasts                 │                │
-│ Big screen     │ ◀──────────────────────────────│                │
-│ (Chromium)     │                                │  SQLite +      │
-│                │  GET /slideshow/playlist       │  filesystem    │
-│                │ ──────────────────────────────▶│  cache         │
-└────────────────┘  GET /slides/<album>/<file>    └────────────────┘
+┌────────────────┐     POST /remote/command            ┌────────────────┐
+│ Phone (remote) │ ───────────────────────────────────▶│  Rails server  │
+└────────────────┘                                     │  (Puma, dev)   │
+        ▲                                              │                │
+        │   WebSocket /cable                           │   ActionCable  │
+        │   (channel: SlideshowChannel)                │   stream:      │
+        ▼                                              │   "slideshow"  │
+┌────────────────┐  WS broadcasts                      │                │
+│ Big screen     │ ◀───────────────────────────────────│                │
+│ (Chromium)     │                                     │  SQLite +      │
+│                │  GET /slideshow/playlist            │  filesystem    │
+│                │ ───────────────────────────────────▶│  cache         │
+│                │  GET /slideshow/timeline            │                │
+│                │ ───────────────────────────────────▶│                │
+│                │  GET /slideshow/albums/:a/images/:i │                │
+│                │ ───────────────────────────────────▶│  ┌──────────┐  │
+└────────────────┘   (ETag + 1y Cache-Control)         │  │ slides/  │  │
+                                                       │  └──────────┘  │
+                                                       └────────────────┘
 ```
+
+The `slides/` folder lives at the project root, *outside* `public/`,
+so photos are never reachable except through the cached image
+endpoint.
 
 There are exactly two HTTP clients in normal operation: the phone (the
 remote, `/remote`) and the big screen (`/`). They never talk to each
@@ -31,11 +41,17 @@ both pages can update in lockstep.
 ### Rails app
 
 * **`SlideshowController`** — renders the big-screen shell (`#display`)
-  and serves the paginated JSON playlist (`#playlist`).
+  and serves the paginated JSON playlist (`#playlist`), per-position
+  date list (`#timeline`), and image bytes with long-lived cache
+  headers (`#image`).
 * **`RemoteController`** — renders the phone remote (`#index`) and
   receives control POSTs (`#command`). Each command broadcasts a
   payload over ActionCable and (for stateful commands) writes to
   `SettingsStore`.
+* **`AdminController`** — read-only dashboard at `/admin` plus a
+  manual reindex button. Shows database counts, album list with image
+  counts, paginated images, the location cache, current settings,
+  and indexer status.
 * **`SlideshowChannel`** — single ActionCable channel; the server
   broadcasts onto the `"slideshow"` stream and both pages subscribe to
   it. The client speaks the protocol via a small vanilla-WebSocket
@@ -45,15 +61,17 @@ both pages can update in lockstep.
 
 ### Indexer (`app/services/indexer.rb`)
 
-Walks `public/slides/` and syncs the `albums` and `images` tables to
-match what's on disk:
+Walks `slides/` (at the project root) and syncs the `albums` and
+`images` tables to match what's on disk:
 
-* Each **subdirectory** of `public/slides/` becomes a row in `albums`
-  with `album_type = "local"` and the directory name as the album name.
-* JPEGs **directly** in `public/slides/` are kept in a single album
-  named `Default` (`path = ""`).
+* Each **subdirectory** of `slides/` becomes a row in `albums` with
+  `album_type = "local"` and the directory name as the album name.
+* JPEGs **directly** in `slides/` are kept in a single album named
+  `Default` (`path = ""`).
 * New files are inserted; EXIF (`DateTimeOriginal` + GPS) is read once
-  on insert and never re-parsed for existing rows.
+  on insert. We also re-read EXIF if the file's mtime is newer than
+  the image record's `updated_at` — that bumps the `?v=` cache buster
+  so the browser refetches the changed image.
 * Files that disappear from disk are deleted from `images`.
   Subdirectories that disappear are deleted from `albums` (cascading
   to their images).
@@ -144,7 +162,7 @@ GET /slideshow/playlist?from=N&count=M[&album_id=K]
   "total": 541,
   "images": [
     {
-      "url":          "/slides/holiday/IMG_001.jpg",
+      "url":          "/slideshow/albums/3/images/47?v=1746710400",
       "taken_at":     "2018-07-04T14:22:11+02:00",
       "location_key": "55.676,12.568",
       "location":     { "country": "Denmark", "area": "Copenhagen" },
@@ -157,6 +175,27 @@ GET /slideshow/playlist?from=N&count=M[&album_id=K]
 `location` is `null` if the key hasn't been resolved yet — the client
 listens for `location_resolved` broadcasts and patches the cached entry
 in place.
+
+## Image endpoint
+
+```
+GET /slideshow/albums/:album_id/images/:image_id?v=<updated_at_unix>
+```
+
+Streams the JPEG bytes. Both ids in the path are validated — a stale
+URL pointing at the wrong album returns 404.
+
+Cache headers:
+* `ETag: "<image_id>-<file_mtime_unix>"` (strong)
+* `Last-Modified: <file_mtime>`
+* `Cache-Control: public, max-age=31536000` (1 year)
+
+A conditional `GET` with `If-None-Match` returns `304 Not Modified`
+with no body. If the file is replaced on disk, the indexer touches the
+record on its next scan, which bumps `updated_at`; the URL's `?v=`
+parameter changes; the browser cache key changes; the new file is
+fetched. This is why photos live outside `public/` — we want the
+request to always go through Rails so these headers are applied.
 
 ## Timeline endpoint
 
@@ -233,8 +272,9 @@ app/
   channels/slideshow_channel.rb       # streams from "slideshow"
   controllers/
     application_controller.rb
-    slideshow_controller.rb           # display + playlist
+    slideshow_controller.rb           # display + playlist + timeline + image
     remote_controller.rb              # remote UI + command POSTs
+    admin_controller.rb               # /admin read-only inspection
   models/
     album.rb image.rb
     setting.rb location.rb
@@ -245,10 +285,12 @@ app/
   views/
     slideshow/display.html.erb
     remote/index.html.erb
+    admin/*.html.erb                  # dashboard, albums, images, locations, settings
     layouts/application.html.erb      # just <%= yield %>
+    layouts/admin.html.erb            # shared admin shell (dark theme)
 public/
   javascript/cable.js                 # tiny vanilla WS Action Cable client
-  slides/                             # photos (subfolders = albums)
+slides/                               # photos (subfolders = albums); NOT under public/
 db/
   migrate/                            # schema
   development.sqlite3                 # albums, images, locations, settings

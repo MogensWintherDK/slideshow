@@ -1,0 +1,40 @@
+<h2>Images <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;"><%= @total %> total</span></h2>
+
+<% if @images.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Album</th>
+        <th class="num">#</th>
+        <th>Filename</th>
+        <th>Taken at</th>
+        <th>GPS</th>
+        <th>Location key</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @images.each do |img| %>
+        <tr>
+          <td><a href="<%= img.url %>" target="_blank"><img class="thumb" loading="lazy" src="<%= img.url %>" alt=""></a></td>
+          <td><a href="<%= admin_album_path(img.album_id) %>"><%= img.album.name %></a></td>
+          <td class="num"><%= img.position %></td>
+          <td class="mono"><%= img.filename %></td>
+          <td class="mono"><%= img.taken_at&.strftime("%Y-%m-%d %H:%M") || "—" %></td>
+          <td class="mono">
+            <% if img.latitude && img.longitude %>
+              <%= sprintf("%.4f, %.4f", img.latitude, img.longitude) %>
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td class="mono"><%= img.location_key || "—" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <%= render "pagination", page: @page, total_pages: @total_pages %>
+<% else %>
+  <div class="card muted">No images yet.</div>
+<% end %>

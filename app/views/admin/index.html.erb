@@ -1,0 +1,88 @@
+<h2>Dashboard</h2>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Albums</div>
+    <div class="value"><%= @album_count %></div>
+    <div class="sub">
+      <% if @albums_by_type.any? %>
+        <%= @albums_by_type.map { |k, v| "#{v} #{k}" }.join(", ") %>
+      <% else %>
+        none
+      <% end %>
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Images</div>
+    <div class="value"><%= @image_count %></div>
+  </div>
+  <div class="stat">
+    <div class="label">Locations cached</div>
+    <div class="value"><%= @location_count %></div>
+  </div>
+  <div class="stat">
+    <div class="label">Settings rows</div>
+    <div class="value"><%= @setting_count %></div>
+  </div>
+</div>
+
+<h3>Indexer</h3>
+<div class="card" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+  <div>
+    <div>
+      <strong>Slides root:</strong>
+      <code class="muted"><%= @slides_root %></code>
+    </div>
+    <div style="margin-top: 6px;" class="muted">
+      <% if @indexer_last %>
+        Last scan: <%= @indexer_last.strftime("%Y-%m-%d %H:%M:%S") %>
+        (<%= time_ago_in_words(@indexer_last) %> ago)
+      <% else %>
+        Has not run yet.
+      <% end %>
+      <% if @indexer_error %>
+        — last error: <code><%= @indexer_error %></code>
+      <% end %>
+    </div>
+  </div>
+  <%= button_to "Reindex now", admin_reindex_path, method: :post, class: "btn" %>
+</div>
+
+<% if @top_albums.any? %>
+  <h3>Top albums</h3>
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Path</th><th class="num">Images</th></tr></thead>
+    <tbody>
+      <% @top_albums.each do |a| %>
+        <tr>
+          <td><a href="<%= admin_album_path(a) %>"><%= a.name %></a></td>
+          <td><span class="tag <%= a.album_type %>"><%= a.album_type %></span></td>
+          <td class="mono"><%= a.path.presence || "—" %></td>
+          <td class="num"><%= a.image_count %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<% if @recent_images.any? %>
+  <h3>Recently indexed</h3>
+  <table>
+    <thead>
+      <tr>
+        <th></th><th>Album</th><th>Filename</th><th>Taken at</th><th>Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @recent_images.each do |img| %>
+        <tr>
+          <td><img class="thumb" loading="lazy" src="<%= img.url %>" alt=""></td>
+          <td><a href="<%= admin_album_path(img.album_id) %>"><%= img.album.name %></a></td>
+          <td class="mono"><%= img.filename %></td>
+          <td class="mono"><%= img.taken_at&.strftime("%Y-%m-%d %H:%M") || "—" %></td>
+          <td class="mono"><%= img.updated_at.strftime("%Y-%m-%d %H:%M") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

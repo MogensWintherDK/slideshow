@@ -10,6 +10,34 @@ class SlideshowController < ApplicationController
     @albums      = Album.order(:name).pluck(:id, :name, :album_type)
   end
 
+  # GET /slideshow/albums/:album_id/images/:image_id
+  #
+  # Streams the JPEG bytes for an image. The album_id in the path is
+  # validated against the record so a stale URL can't cross-reference
+  # the wrong album.
+  #
+  # Caching: we send a strong ETag and Last-Modified derived from the
+  # file's id + mtime, plus `Cache-Control: public, max-age=1 year`.
+  # The browser keeps the bytes forever; if the image is re-indexed
+  # (the file mtime changes) the URL's ?v= parameter changes too,
+  # which busts the cache.
+  def image
+    img = Image.find_by(id: params[:image_id], album_id: params[:album_id])
+    return head :not_found unless img
+    return head :not_found unless img.album.album_type == "local"
+
+    path = img.local_path
+    return head :not_found unless File.exist?(path)
+
+    mtime = File.mtime(path)
+    if stale?(etag: "#{img.id}-#{mtime.to_i}",
+              last_modified: mtime,
+              public: true)
+      expires_in 1.year, public: true
+      send_file path, type: "image/jpeg", disposition: "inline"
+    end
+  end
+
   # GET /slideshow/timeline[?album_id=K]
   #
   # Returns just the per-position taken_at as an ISO-string array.

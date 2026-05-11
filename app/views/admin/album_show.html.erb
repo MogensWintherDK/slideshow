@@ -1,0 +1,60 @@
+<div class="breadcrumb"><a href="<%= admin_albums_path %>">← All albums</a></div>
+
+<h2><%= @album.name %> <span class="tag <%= @album.album_type %>" style="vertical-align: middle; margin-left: 6px;"><%= @album.album_type %></span></h2>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Images</div>
+    <div class="value"><%= @total %></div>
+  </div>
+  <div class="stat">
+    <div class="label">Path</div>
+    <div class="value" style="font-size: 16px;">
+      <code><%= @album.path.presence || "(default)" %></code>
+    </div>
+    <div class="sub">relative to <code><%= Image.slides_root %></code></div>
+  </div>
+  <div class="stat">
+    <div class="label">Created</div>
+    <div class="value" style="font-size: 16px;">
+      <%= @album.created_at.strftime("%Y-%m-%d %H:%M") %>
+    </div>
+  </div>
+</div>
+
+<% if @images.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th class="num">#</th>
+        <th>Filename</th>
+        <th>Taken at</th>
+        <th>GPS</th>
+        <th>Location key</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @images.each do |img| %>
+        <tr>
+          <td><a href="<%= img.url %>" target="_blank"><img class="thumb" loading="lazy" src="<%= img.url %>" alt=""></a></td>
+          <td class="num"><%= img.position %></td>
+          <td class="mono"><%= img.filename %></td>
+          <td class="mono"><%= img.taken_at&.strftime("%Y-%m-%d %H:%M") || "—" %></td>
+          <td class="mono">
+            <% if img.latitude && img.longitude %>
+              <%= sprintf("%.4f, %.4f", img.latitude, img.longitude) %>
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td class="mono"><%= img.location_key || "—" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <%= render "pagination", page: @page, total_pages: @total_pages %>
+<% else %>
+  <div class="card muted">This album has no images.</div>
+<% end %>

@@ -4,6 +4,7 @@ A simple local-network photo slideshow with a phone remote.
 
 - **Big screen** → `http://YOUR-IP:3000/` — full-screen slideshow
 - **Phone remote** → `http://YOUR-IP:3000/remote` — play/pause, reset, delay, mode
+- **Admin** → `http://YOUR-IP:3000/admin` — inspect the database, trigger reindex
 
 For how it all works under the hood, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -26,12 +27,14 @@ Stop the server with `Ctrl+C`.
 
 ## Adding your photos
 
-Drop JPEG files into `public/slides/`. You have two options:
+Drop JPEG files into `slides/` (at the project root — *not* inside `public/`). You have two options:
 
-- **Single album** — put JPEGs directly in `public/slides/`. They land in an auto-created album called `Default`.
-- **Multiple albums** — create subfolders under `public/slides/` (e.g. `public/slides/holiday/`, `public/slides/family/`). Each subfolder becomes a named album.
+- **Single album** — put JPEGs directly in `slides/`. They land in an auto-created album called `Default`.
+- **Multiple albums** — create subfolders under `slides/` (e.g. `slides/holiday/`, `slides/family/`). Each subfolder becomes a named album.
 
 Files are sorted alphabetically by filename within an album, so prefix them (`001_holiday.jpg`, `002_holiday.jpg`) if you want a specific order. The background indexer picks up new files within ~5 minutes; to force an immediate scan run `bundle exec rails runner Indexer.run`.
+
+If you had photos in `public/slides/` from earlier versions, `bin/start` moves them to `slides/` for you on first run.
 
 ## Remote controls
 
