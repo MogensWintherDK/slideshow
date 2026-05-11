@@ -4,6 +4,7 @@ class RemoteController < ApplicationController
 
   def index
     @settings = SettingsStore.read
+    @albums   = Album.order(:name).pluck(:id, :name, :album_type)
   end
 
   # Returns current settings as JSON (used by the remote on load).
@@ -38,6 +39,14 @@ class RemoteController < ApplicationController
       mode = "linear" unless %w[linear random].include?(mode)
       SettingsStore.write("play_mode" => mode)
       payload[:mode] = mode
+    when "set_album"
+      raw = params[:album_id].to_s
+      album_id = raw.empty? ? nil : raw.to_i
+      if album_id && !Album.where(id: album_id).exists?
+        return head :bad_request
+      end
+      SettingsStore.write("selected_album_id" => album_id)
+      payload[:album_id] = album_id
     else
       return head :bad_request
     end

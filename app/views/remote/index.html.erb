@@ -193,6 +193,48 @@
       color: #fff;
     }
 
+    /* Album list */
+    .album-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .album-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: #2c2c2e;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, transform 0.08s;
+    }
+    .album-btn:active { transform: scale(0.98); }
+    .album-btn.active {
+      border-color: var(--accent);
+      background: rgba(10,132,255,0.12);
+      color: #fff;
+    }
+    .album-type {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .album-empty {
+      color: var(--text-dim);
+      font-size: 13px;
+      padding: 4px 0;
+    }
+
     /* Birthday-mode controls */
     .toggle-row {
       display: flex;
@@ -258,6 +300,24 @@
 </head>
 <body>
   <h1>Slideshow Remote</h1>
+
+  <div class="card">
+    <div class="card-title">Album</div>
+    <div class="album-list" id="album-list">
+      <button class="album-btn <%= 'active' if @settings['selected_album_id'].nil? %>"
+              data-album-id="">All albums</button>
+      <% @albums.each do |id, name, type| %>
+        <button class="album-btn <%= 'active' if @settings['selected_album_id'].to_i == id %>"
+                data-album-id="<%= id %>">
+          <span><%= name %></span>
+          <% if type != 'local' %><span class="album-type"><%= type %></span><% end %>
+        </button>
+      <% end %>
+      <% if @albums.empty? %>
+        <div class="album-empty">No albums yet — drop JPEGs into <code>public/slides/</code>.</div>
+      <% end %>
+    </div>
+  </div>
 
   <div class="card">
     <div class="card-title">Playback</div>
@@ -384,6 +444,15 @@
     document.getElementById("reset-btn").addEventListener("click", () => {
       setPlaying(true);
       send({ action_name: "reset" });
+    });
+
+    // ── Album selection ─────────────────────────────────────────────────
+    document.querySelectorAll("#album-list .album-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#album-list .album-btn")
+          .forEach(b => b.classList.toggle("active", b === btn));
+        send({ action_name: "set_album", album_id: btn.dataset.albumId });
+      });
     });
 
     // ── Play mode (linear / random) ──────────────────────────────────────

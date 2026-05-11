@@ -10,7 +10,32 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_05_08_120001) do
+ActiveRecord::Schema[7.0].define(version: 2026_05_08_130001) do
+  create_table "albums", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "album_type", default: "local", null: false
+    t.string "path", default: "", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["album_type", "path"], name: "index_albums_on_album_type_and_path", unique: true
+  end
+
+  create_table "images", force: :cascade do |t|
+    t.integer "album_id", null: false
+    t.string "filename", null: false
+    t.datetime "taken_at"
+    t.float "latitude"
+    t.float "longitude"
+    t.string "location_key"
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["album_id", "filename"], name: "index_images_on_album_id_and_filename", unique: true
+    t.index ["album_id", "position"], name: "index_images_on_album_id_and_position"
+    t.index ["album_id"], name: "index_images_on_album_id"
+    t.index ["location_key"], name: "index_images_on_location_key"
+  end
+
   create_table "locations", id: false, force: :cascade do |t|
     t.string "key", null: false
     t.string "country"
@@ -27,4 +52,5 @@ ActiveRecord::Schema[7.0].define(version: 2026_05_08_120001) do
     t.index ["key"], name: "index_settings_on_key", unique: true
   end
 
+  add_foreign_key "images", "albums", on_delete: :cascade
 end

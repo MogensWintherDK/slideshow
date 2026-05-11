@@ -14,13 +14,13 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    #slideshow {
+    #stage {
       position: relative;
       width: 100vw;
       height: 100vh;
     }
 
-    .slide {
+    .slot {
       position: absolute;
       inset: 0;
       display: flex;
@@ -30,14 +30,12 @@
       transition: opacity 0.8s ease-in-out;
       pointer-events: none;
     }
+    .slot.active { opacity: 1; }
 
-    .slide.active { opacity: 1; }
-
-    .slide img {
+    .slot img {
       max-width: 100vw;
       max-height: 100vh;
-      width: auto;
-      height: auto;
+      width: auto; height: auto;
       object-fit: contain;
       display: block;
     }
@@ -56,19 +54,24 @@
       position: fixed;
       inset: 0;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: rgba(255,255,255,0.6);
+      color: rgba(255,255,255,0.65);
       font-size: 18px;
       text-align: center;
       padding: 24px;
+      gap: 8px;
     }
+    #empty .dim { color: rgba(255,255,255,0.4); font-size: 14px; }
 
-    /* ── Timeline ─────────────────────────────────────────────────────── */
+    /* ── Timeline (birthday mode) ─────────────────────────────────────── */
     #timeline {
       position: fixed;
       left: 0; right: 0; bottom: 0;
-      padding: 14px 100px 18px;
+      padding: clamp(14px, 0.9vw, 28px)
+               clamp(100px, 5vw, 200px)
+               clamp(18px, 1.1vw, 36px);
       background: linear-gradient(to top,
                   rgba(0,0,0,0.78) 0%,
                   rgba(0,0,0,0.55) 60%,
@@ -84,53 +87,52 @@
 
     #tl-track {
       position: relative;
-      height: 4px;
+      height: clamp(4px, 0.22vw, 8px);
       background: rgba(255,255,255,0.18);
-      border-radius: 2px;
-      margin: 30px 0 12px;
+      border-radius: 999px;
+      margin: clamp(30px, 2.2vw, 64px) 0 clamp(12px, 0.7vw, 24px);
     }
 
     .tl-marker {
+      --mw: clamp(4px, 0.22vw, 8px);
       position: absolute;
       top: 50%;
-      width: 4px;
-      height: 4px;
-      margin-left: -2px;
-      margin-top: -2px;
+      width: var(--mw); height: var(--mw);
+      margin-left: calc(var(--mw) / -2);
+      margin-top:  calc(var(--mw) / -2);
       border-radius: 50%;
       background: rgba(255,255,255,0.55);
       transition: transform 0.25s ease, background 0.25s ease;
     }
     .tl-marker.active {
-      width: 14px;
-      height: 14px;
-      margin-left: -7px;
-      margin-top: -7px;
+      --mw: clamp(14px, 0.75vw, 28px);
       background: #ffd84a;
-      box-shadow: 0 0 12px rgba(255,216,74,0.6);
+      box-shadow: 0 0 clamp(12px, 0.7vw, 24px) rgba(255,216,74,0.6);
       z-index: 2;
     }
 
     #tl-age {
       position: absolute;
-      bottom: 16px;
+      bottom: clamp(16px, 0.9vw, 32px);
       transform: translateX(-50%);
       background: rgba(255,216,74,0.95);
       color: #000;
       font-weight: 700;
-      font-size: 14px;
-      padding: 4px 10px;
-      border-radius: 8px;
+      font-size: clamp(14px, 0.85vw, 32px);
+      padding: clamp(4px, 0.25vw, 10px) clamp(10px, 0.55vw, 22px);
+      border-radius: clamp(8px, 0.4vw, 16px);
       white-space: nowrap;
       transition: left 0.25s ease;
       pointer-events: none;
     }
     #tl-age::after {
+      --tw: clamp(8px, 0.45vw, 16px);
       content: "";
       position: absolute;
-      left: 50%; bottom: -4px;
+      left: 50%;
+      bottom: calc(var(--tw) / -2);
       transform: translateX(-50%) rotate(45deg);
-      width: 8px; height: 8px;
+      width: var(--tw); height: var(--tw);
       background: rgba(255,216,74,0.95);
     }
 
@@ -138,20 +140,19 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11px;
+      font-size: clamp(11px, 0.65vw, 24px);
       color: rgba(255,255,255,0.55);
       letter-spacing: 0.3px;
-      gap: 16px;
+      gap: clamp(16px, 1vw, 32px);
     }
-
     #tl-location {
       flex: 1;
       text-align: center;
-      font-size: 14px;
+      font-size: clamp(14px, 0.85vw, 32px);
       font-weight: 500;
       color: rgba(255,255,255,0.9);
       letter-spacing: 0.3px;
-      min-height: 18px;
+      min-height: 1em;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -159,21 +160,34 @@
   </style>
 </head>
 <body>
-  <% if @images.empty? %>
+  <% if @total.zero? %>
     <div id="empty">
-      No images found.<br>
-      Add JPEG files to <code>public/slides/</code> and reload.
+      <div><%= @indexing ? "Indexing your photos…" : "No images found." %></div>
+      <div class="dim">
+        <%= @indexing ? "This page will reload automatically once images are available."
+                      : "Add JPEGs to public/slides/ (optionally in subfolders for albums)." %>
+      </div>
     </div>
+    <% if @indexing %>
+      <script>
+        // Poll the playlist endpoint every 3s, reload once images appear.
+        async function check() {
+          try {
+            const r = await fetch("<%= slideshow_playlist_path %>?from=0&count=1");
+            const j = await r.json();
+            if (j.total > 0) location.reload();
+          } catch (e) {}
+        }
+        setInterval(check, 3000);
+      </script>
+    <% end %>
   <% else %>
-    <div id="slideshow">
-      <% @images.each_with_index do |img, i| %>
-        <div class="slide <%= 'active' if i == 0 %>" data-index="<%= i %>">
-          <img src="<%= img[:url] %>" alt="Slide <%= i + 1 %>" loading="<%= i < 3 ? 'eager' : 'lazy' %>">
-        </div>
-      <% end %>
+    <div id="stage">
+      <div class="slot active" id="slot-a"><img alt=""></div>
+      <div class="slot"        id="slot-b"><img alt=""></div>
     </div>
 
-    <div id="status">&#9654; 1 / <%= @images.size %></div>
+    <div id="status">&#9654; …</div>
 
     <!-- Timeline overlay (hidden until birthday mode is on with a date set) -->
     <div id="timeline" aria-hidden="true">
@@ -187,100 +201,191 @@
       </div>
     </div>
 
-    <script type="application/json" id="slides-data">
-      <%= @images.to_json.html_safe %>
+    <script type="application/json" id="boot">
+      <%= {
+            playlist_url:   slideshow_playlist_path,
+            timeline_url:   slideshow_timeline_path,
+            page_size:      20,
+            prefetch_ahead: 2,
+            total:          @total,
+            birthday_mode:  @settings["birthday_mode"],
+            birthday:       @settings["birthday"],
+            play_mode:      @settings["play_mode"]
+          }.to_json.html_safe %>
     </script>
 
     <script type="module">
       import { subscribeChannel } from "/javascript/cable.js";
 
-      // ── Slide data + state ─────────────────────────────────────────────
-      const SLIDES = JSON.parse(document.getElementById("slides-data").textContent);
-      const slides      = document.querySelectorAll(".slide");
-      const statusEl    = document.getElementById("status");
-      const totalSlides = slides.length;
+      // ── Boot config ────────────────────────────────────────────────────
+      const CFG = JSON.parse(document.getElementById("boot").textContent);
 
-      let currentIndex = 0;
-      let delay        = 5000;
-      let playing      = true;
-      let timer        = null;
+      // ── Playlist (sparse array of metadata, keyed by playlist index) ──
+      const playlist     = new Array(CFG.total);
+      let   total        = CFG.total;
+      const fetchedPages = new Set();
+      const inflight     = new Map(); // page-start -> Promise
 
-      let birthdayMode = <%= @settings['birthday_mode'] ? 'true' : 'false' %>;
-      let birthday     = <%= @settings['birthday'].to_s.empty? ? 'null' : @settings['birthday'].to_json.html_safe %>;
-      let playMode     = <%= @settings['play_mode'].to_s.to_json.html_safe %>; // "linear" | "random"
+      async function fetchPage(from) {
+        const start = Math.floor(from / CFG.page_size) * CFG.page_size;
+        if (fetchedPages.has(start)) return;
+        if (inflight.has(start))     return inflight.get(start);
 
-      // ── Slide playback ─────────────────────────────────────────────────
-      function showSlide(index) {
-        slides[currentIndex].classList.remove("active");
-        currentIndex = ((index % totalSlides) + totalSlides) % totalSlides;
-        slides[currentIndex].classList.add("active");
+        const p = (async () => {
+          const url = `${CFG.playlist_url}?from=${start}&count=${CFG.page_size}`;
+          const r   = await fetch(url);
+          const j   = await r.json();
+          total     = j.total;
+          for (let i = 0; i < j.images.length; i++) {
+            playlist[j.from + i] = j.images[i];
+          }
+          fetchedPages.add(start);
+          inflight.delete(start);
+        })();
+        inflight.set(start, p);
+        return p;
+      }
+
+      async function ensureLoaded(idx) {
+        if (playlist[idx]) return playlist[idx];
+        await fetchPage(idx);
+        return playlist[idx];
+      }
+
+      // ── Image prefetch cache (bounded) ─────────────────────────────────
+      const prefetchCache = new Map(); // url -> HTMLImageElement
+      const PREFETCH_MAX  = 6;
+
+      function prefetch(url) {
+        if (!url || prefetchCache.has(url)) return;
+        const img = new Image();
+        img.decoding = "async";
+        img.src = url;
+        prefetchCache.set(url, img);
+        while (prefetchCache.size > PREFETCH_MAX) {
+          const oldest = prefetchCache.keys().next().value;
+          const oldImg = prefetchCache.get(oldest);
+          oldImg.src = ""; // hint to the GC
+          prefetchCache.delete(oldest);
+        }
+      }
+
+      // ── 2-slot crossfade ───────────────────────────────────────────────
+      const slots = [
+        document.getElementById("slot-a"),
+        document.getElementById("slot-b")
+      ];
+      let activeSlot  = 0;
+      let currentIdx  = 0;
+      let currentMeta = null;
+
+      function loadImageInSlot(slotIdx, url) {
+        const img = slots[slotIdx].querySelector("img");
+        if (img.src.endsWith(url) || img.src === url) {
+          return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+          const cached = prefetchCache.get(url);
+          if (cached && cached.complete && cached.naturalWidth > 0) {
+            img.src = url;
+            resolve();
+            return;
+          }
+          img.onload  = () => resolve();
+          img.onerror = () => resolve();
+          img.src = url;
+        });
+      }
+
+      async function show(idx) {
+        if (total === 0) return;
+        idx = ((idx % total) + total) % total;
+
+        // Make sure metadata for this index (and the prefetch window) is known
+        const meta = await ensureLoaded(idx);
+        if (!meta) return;
+
+        const nextSlot = 1 - activeSlot;
+        await loadImageInSlot(nextSlot, meta.url);
+
+        slots[nextSlot].classList.add("active");
+        slots[activeSlot].classList.remove("active");
+        activeSlot   = nextSlot;
+        currentIdx   = idx;
+        currentMeta  = meta;
+
         updateStatus();
         updateTimelineActive();
+        kickoffPrefetch();
       }
 
-      function updateStatus() {
-        const icon = playing ? "▶" : "⏸";
-        statusEl.textContent = `${icon} ${currentIndex + 1} / ${totalSlides}`;
+      async function kickoffPrefetch() {
+        for (let i = 1; i <= CFG.prefetch_ahead; i++) {
+          const j = (currentIdx + i) % total;
+          ensureLoaded(j).then((m) => m && prefetch(m.url));
+        }
       }
+
+      // ── Auto-advance ───────────────────────────────────────────────────
+      let delay   = 5000;
+      let playing = true;
+      let timer   = null;
+      let playMode = CFG.play_mode === "random" ? "random" : "linear";
 
       function nextIndex() {
-        if (playMode === "random" && totalSlides > 1) {
+        if (playMode === "random" && total > 1) {
           let n;
-          do { n = Math.floor(Math.random() * totalSlides); } while (n === currentIndex);
+          do { n = Math.floor(Math.random() * total); } while (n === currentIdx);
           return n;
         }
-        return currentIndex + 1;
+        return currentIdx + 1;
       }
 
       function startTimer() {
         clearInterval(timer);
         timer = setInterval(() => {
-          if (playing) showSlide(nextIndex());
+          if (playing) show(nextIndex());
         }, delay);
       }
 
+      function updateStatus() {
+        const icon = playing ? "▶" : "⏸";
+        document.getElementById("status").textContent =
+          `${icon} ${currentIdx + 1} / ${total}`;
+      }
+
       // ── Timeline ───────────────────────────────────────────────────────
-      const timelineEl = document.getElementById("timeline");
-      const trackEl    = document.getElementById("tl-track");
-      const ageEl      = document.getElementById("tl-age");
-      const startLbl   = document.getElementById("tl-start");
-      const locationEl = document.getElementById("tl-location");
+      const timelineEl  = document.getElementById("timeline");
+      const trackEl     = document.getElementById("tl-track");
+      const ageEl       = document.getElementById("tl-age");
+      const startLbl    = document.getElementById("tl-start");
+      const locationEl  = document.getElementById("tl-location");
 
-      // Cache of resolved locations, keyed by location_key (e.g. "55.676,12.568")
-      const locationByKey = new Map();
-      for (const s of SLIDES) {
-        if (s.location_key && s.location) locationByKey.set(s.location_key, s.location);
+      let birthdayMode  = !!CFG.birthday_mode;
+      let birthday      = CFG.birthday || null;
+      let markers       = [];
+      // taken_at per playlist index, fetched once on boot from /slideshow/timeline.
+      let timelineDates = null;
+
+      async function fetchTimelineDates() {
+        try {
+          const r = await fetch(CFG.timeline_url);
+          const j = await r.json();
+          timelineDates = j.dates;  // array; entries may be null
+        } catch (e) {
+          timelineDates = null;
+        }
       }
-
-      function formatLocation(loc) {
-        if (!loc) return "";
-        const parts = [];
-        if (loc.area)    parts.push(loc.area);
-        if (loc.country) parts.push(loc.country);
-        return parts.join(", ");
-      }
-
-      function updateLocationLabel() {
-        const slide = SLIDES[currentIndex];
-        const loc   = slide && slide.location_key ? locationByKey.get(slide.location_key) : null;
-        locationEl.textContent = formatLocation(loc);
-      }
-
-      // Build markers once (positions only depend on dates and birthday)
-      let markers = []; // DOM nodes, indexed parallel to SLIDES
 
       function rebuildTimeline() {
-        // Remove existing markers
         for (const m of markers) m.remove();
         markers = [];
 
-        const haveBirthday = birthdayMode && birthday;
-        if (!haveBirthday) {
+        if (!(birthdayMode && birthday) || !timelineDates) {
           timelineEl.classList.remove("visible");
           timelineEl.setAttribute("aria-hidden", "true");
           return;
         }
-
         const start = new Date(birthday + "T00:00:00");
         const end   = new Date();
         const span  = end - start;
@@ -289,21 +394,26 @@
           return;
         }
 
-        startLbl.textContent = formatDate(start);
+        startLbl.textContent = start.toLocaleDateString(undefined,
+          { year: "numeric", month: "short", day: "numeric" });
 
-        for (const slide of SLIDES) {
+        // Build all markers in one fragment for a single layout flush.
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < timelineDates.length; i++) {
           const m = document.createElement("div");
           m.className = "tl-marker";
-          if (slide.date) {
-            const d = new Date(slide.date);
+          const iso = timelineDates[i];
+          if (iso) {
+            const d = new Date(iso);
             const pct = clamp((d - start) / span, 0, 1) * 100;
             m.style.left = pct + "%";
           } else {
             m.style.display = "none";
           }
-          trackEl.appendChild(m);
+          frag.appendChild(m);
           markers.push(m);
         }
+        trackEl.appendChild(frag);
 
         timelineEl.classList.add("visible");
         timelineEl.setAttribute("aria-hidden", "false");
@@ -311,15 +421,19 @@
       }
 
       function updateTimelineActive() {
-        updateLocationLabel();
-        if (!birthdayMode || !birthday) return;
-        const slide = SLIDES[currentIndex];
+        if (!birthdayMode || !birthday) {
+          updateLocationLabel();
+          return;
+        }
+        markers.forEach((m, i) => m.classList.toggle("active", i === currentIdx));
 
-        markers.forEach((m, i) => m.classList.toggle("active", i === currentIndex));
-
-        if (slide && slide.date) {
+        // Prefer the precomputed date array (always complete) over the
+        // possibly-not-yet-paged metadata.
+        const iso = (timelineDates && timelineDates[currentIdx]) ||
+                    (currentMeta && currentMeta.taken_at);
+        if (iso) {
           const start = new Date(birthday + "T00:00:00");
-          const taken = new Date(slide.date);
+          const taken = new Date(iso);
           const pct   = clamp((taken - start) / (new Date() - start), 0, 1) * 100;
           ageEl.textContent = ageAt(start, taken);
           ageEl.style.left  = pct + "%";
@@ -327,24 +441,26 @@
         } else {
           ageEl.hidden = true;
         }
+        updateLocationLabel();
       }
 
-      // ── Helpers ────────────────────────────────────────────────────────
+      function updateLocationLabel() {
+        const loc = currentMeta && currentMeta.location;
+        if (!loc) { locationEl.textContent = ""; return; }
+        const parts = [];
+        if (loc.area)    parts.push(loc.area);
+        if (loc.country) parts.push(loc.country);
+        locationEl.textContent = parts.join(", ");
+      }
+
       function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-      function formatDate(d) {
-        return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-      }
-
-      // Whole months between two dates, with day-of-month adjustment.
       function monthsBetween(from, to) {
         let m = (to.getFullYear() - from.getFullYear()) * 12 +
                 (to.getMonth() - from.getMonth());
         if (to.getDate() < from.getDate()) m -= 1;
         return Math.max(0, m);
       }
-
-      // 0–24 months -> "X months", otherwise "Y years"
       function ageAt(birthdate, when) {
         const months = monthsBetween(birthdate, when);
         if (months < 24) return months === 1 ? "1 month" : `${months} months`;
@@ -353,61 +469,61 @@
       }
 
       // ── Boot ───────────────────────────────────────────────────────────
-      startTimer();
-      rebuildTimeline();
+      (async () => {
+        // Fetch all timeline dates in parallel with the first metadata page,
+        // so the markers appear as soon as the slideshow starts.
+        const [_, __] = await Promise.all([
+          ensureLoaded(0),
+          fetchTimelineDates()
+        ]);
+        rebuildTimeline();
+        await show(0);
+        startTimer();
+      })();
 
-      // ── Cable ──────────────────────────────────────────────────────────
+      // ── Action Cable controls ──────────────────────────────────────────
       subscribeChannel("SlideshowChannel", {
         received(data) {
           switch (data.action) {
             case "play":
-              playing = true;
-              startTimer();
-              updateStatus();
-              break;
-
+              playing = true;  startTimer(); updateStatus(); break;
             case "pause":
-              playing = false;
-              clearInterval(timer);
-              updateStatus();
-              break;
-
+              playing = false; clearInterval(timer); updateStatus(); break;
             case "reset":
-              playing = true;
-              showSlide(0);
-              startTimer();
-              break;
-
+              playing = true;  show(0); startTimer(); break;
             case "skip":
-              showSlide(currentIndex + (parseInt(data.delta, 10) || 0));
+              show(currentIdx + (parseInt(data.delta, 10) || 0));
               if (playing) startTimer();
               break;
-
             case "set_delay":
               delay = data.delay * 1000;
               if (playing) startTimer();
               break;
-
+            case "set_play_mode":
+              playMode = data.mode === "random" ? "random" : "linear";
+              break;
             case "set_birthday_mode":
               birthdayMode = !!data.enabled;
               rebuildTimeline();
               break;
-
             case "set_birthday":
               birthday = data.birthday || null;
               rebuildTimeline();
               break;
-
-            case "set_play_mode":
-              playMode = data.mode === "random" ? "random" : "linear";
+            case "set_album":
+              // The playlist scope changed entirely — reload so we start
+              // clean with a fresh total, page cache, and timeline.
+              location.reload();
               break;
-
             case "location_resolved":
+              // Update any cached metadata that points at this key
               if (data.key && data.location) {
-                locationByKey.set(data.key, data.location);
-                // If the current slide is at this location, refresh the label
-                const slide = SLIDES[currentIndex];
-                if (slide && slide.location_key === data.key) updateLocationLabel();
+                for (const m of playlist) {
+                  if (m && m.location_key === data.key) m.location = data.location;
+                }
+                if (currentMeta && currentMeta.location_key === data.key) {
+                  updateLocationLabel();
+                }
               }
               break;
           }

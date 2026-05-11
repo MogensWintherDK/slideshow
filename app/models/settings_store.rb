@@ -10,9 +10,10 @@ module SettingsStore
 
   LEGACY_PATH = Rails.root.join("db", "settings.json")
   DEFAULTS    = {
-    "birthday_mode" => false,
-    "birthday"      => nil,    # ISO date string, e.g. "2018-04-12"
-    "play_mode"     => "linear" # "linear" or "random"
+    "birthday_mode"      => false,
+    "birthday"           => nil,    # ISO date string, e.g. "2018-04-12"
+    "play_mode"          => "linear", # "linear" or "random"
+    "selected_album_id"  => nil      # nil = all albums merged
   }.freeze
 
   def read

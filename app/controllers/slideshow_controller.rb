@@ -1,51 +1,65 @@
-require "exifr/jpeg"
-
 class SlideshowController < ApplicationController
   layout false
 
+  # The display page is now a thin shell. All image data is fetched
+  # incrementally by the client via #playlist.
   def display
-    @images   = load_images
-    @settings = SettingsStore.read
+    @settings    = SettingsStore.read
+    @total       = playlist_scope.count
+    @indexing    = @total.zero? && Album.count.zero?
+    @albums      = Album.order(:name).pluck(:id, :name, :album_type)
+  end
+
+  # GET /slideshow/timeline[?album_id=K]
+  #
+  # Returns just the per-position taken_at as an ISO-string array.
+  # The slideshow uses this on boot to render every marker on the
+  # timeline up-front, without waiting for the full playlist to page in.
+  def timeline
+    dates = playlist_scope.pluck(:taken_at).map { |t| t&.iso8601 }
+    render json: { total: dates.size, dates: dates }
+  end
+
+  # GET /slideshow/playlist?from=N&count=M[&album_id=K]
+  #
+  # Returns metadata for a slice of the global playlist (or a single
+  # album if album_id is provided). Locations are joined in if cached.
+  def playlist
+    from  = [params[:from].to_i, 0].max
+    count = params[:count].to_i.clamp(1, 100)
+
+    scope = playlist_scope
+    total = scope.count
+
+    rows = scope.offset(from).limit(count).includes(:album).to_a
+    keys = rows.map(&:location_key).compact.uniq
+    locs = Location.where(key: keys).index_by(&:key)
+
+    images = rows.map do |img|
+      loc = img.location_key && locs[img.location_key]
+      {
+        url:          img.url,
+        taken_at:     img.taken_at&.iso8601,
+        location_key: img.location_key,
+        location:     loc && { "country" => loc.country, "area" => loc.area },
+        album:        { id: img.album_id, name: img.album.name, type: img.album.album_type }
+      }
+    end
+
+    render json: { from: from, count: images.size, total: total, images: images }
   end
 
   private
 
-  def load_images
-    images_path = Rails.root.join("public", "slides")
-    Dir.children(images_path)
-       .select { |name| name =~ /\.jpe?g\z/i }
-       .sort
-       .map { |name| build_image_data(images_path.join(name), name) }
-  rescue Errno::ENOENT
-    []
-  end
-
-  def build_image_data(path, name)
-    info         = read_exif(path)
-    location_key = nil
-    location     = nil
-
-    if info[:lat] && info[:lon]
-      location_key = Geocoder.key_for(info[:lat], info[:lon])
-      location     = Geocoder.lookup(info[:lat], info[:lon])
-      Geocoder.resolve_async(info[:lat], info[:lon]) if location.nil?
+  # The order across the whole library: by album name, then by intra-album
+  # position. Filtering by selected_album_id (a future setting) is honoured.
+  def playlist_scope
+    base = Image.joins(:album).order("albums.name ASC, images.position ASC")
+    if (id = params[:album_id]).present?
+      base = base.where(albums: { id: id })
+    elsif (id = SettingsStore.read["selected_album_id"]).present?
+      base = base.where(albums: { id: id })
     end
-
-    {
-      url:          "/slides/#{name}",
-      date:         info[:date]&.iso8601,
-      location_key: location_key,
-      location:     location
-    }
-  end
-
-  # EXIF DateTimeOriginal + GPS, with mtime fallback for the date.
-  def read_exif(path)
-    exif = EXIFR::JPEG.new(path.to_s)
-    date = exif.date_time_original || File.mtime(path)
-    gps  = exif.gps
-    { date: date, lat: gps&.latitude, lon: gps&.longitude }
-  rescue StandardError
-    { date: (File.mtime(path) rescue nil), lat: nil, lon: nil }
+    base
   end
 end
