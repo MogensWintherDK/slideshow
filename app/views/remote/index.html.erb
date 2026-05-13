@@ -10,9 +10,11 @@
     :root {
       --bg: #0f0f0f;
       --surface: #1c1c1e;
+      --surface2: #232325;
       --border: #2c2c2e;
       --accent: #0a84ff;
       --danger: #ff453a;
+      --good: #32d74b;
       --text: #f2f2f7;
       --text-dim: #8e8e93;
       --radius: 14px;
@@ -30,15 +32,67 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 32px 20px 48px;
-      gap: 24px;
+      padding: 0 20px 48px;
+      gap: 16px;
     }
 
-    h1 {
-      font-size: 20px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
+    .topbar {
+      position: sticky;
+      top: 0;
+      width: 100%;
+      max-width: 380px;
+      background: rgba(15,15,15,0.95);
+      backdrop-filter: blur(12px);
+      padding: 16px 0 12px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
     }
+    .back-btn, .gear-btn {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .gear-btn:active, .back-btn:active { background: var(--surface2); }
+
+    /* Group config — one section per group, separated visually */
+    .group-section + .group-section {
+      margin-top: 12px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .group-section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .group-section-codes {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+    }
+    .subhead {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      margin: 14px 0 8px;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+    .topbar .sub { color: var(--text-dim); font-size: 12px; }
 
     .card {
       width: 100%;
@@ -48,7 +102,6 @@
       border-radius: var(--radius);
       padding: 20px;
     }
-
     .card-title {
       font-size: 11px;
       font-weight: 600;
@@ -58,6 +111,59 @@
       margin-bottom: 14px;
     }
 
+    /* ── View toggles ───────────────────────────────────────────────── */
+    .view { width: 100%; display: contents; }
+    .view.hidden { display: none; }
+
+    /* ── Group cards (picker view) ──────────────────────────────────── */
+    .group-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color 0.12s, transform 0.08s, background 0.12s;
+    }
+    .group-card:active { transform: scale(0.99); background: var(--surface2); }
+    .group-card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .screen-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .screen-dot.online { background: var(--good); }
+    .group-name {
+      font-size: 16px;
+      font-weight: 600;
+      flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .group-state-icon {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+    .group-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .screen-pill {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      background: var(--surface2);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    /* ── Buttons / inputs (control view) ────────────────────────────── */
     #play-pause-btn {
       width: 100%;
       height: 64px;
@@ -75,7 +181,7 @@
       color: #fff;
     }
     #play-pause-btn:active { transform: scale(0.97); }
-    #play-pause-btn.paused  { background: #32d74b; }
+    #play-pause-btn.paused { background: var(--good); }
 
     #reset-btn {
       width: 100%;
@@ -88,437 +194,681 @@
       color: var(--danger);
       border: 1.5px solid var(--danger);
       transition: background 0.15s, transform 0.08s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
     }
     #reset-btn:active { transform: scale(0.97); background: rgba(255,69,58,0.12); }
 
+    .skip-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+    .skip-btn {
+      height: 44px; border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface); color: var(--text);
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: background 0.1s, transform 0.08s;
+    }
+    .skip-btn:active { transform: scale(0.95); background: var(--border); }
+
     .delay-row { display: flex; align-items: center; gap: 12px; }
-
     .delay-display {
-      font-size: 36px;
-      font-weight: 700;
-      min-width: 70px;
-      text-align: center;
-      letter-spacing: -1px;
+      font-size: 36px; font-weight: 700; min-width: 70px;
+      text-align: center; letter-spacing: -1px;
     }
-
-    .delay-unit {
-      font-size: 13px;
-      color: var(--text-dim);
-      margin-top: 4px;
-      text-align: center;
-    }
-
+    .delay-unit { font-size: 13px; color: var(--text-dim); margin-top: 4px; text-align: center; }
     .stepper { display: flex; flex-direction: column; gap: 8px; flex: 1; }
-
     .step-btn {
-      height: 48px;
-      border-radius: 10px;
-      border: none;
-      font-size: 22px;
-      font-weight: 500;
-      cursor: pointer;
-      background: var(--border);
-      color: var(--text);
+      height: 48px; border-radius: 10px; border: none;
+      font-size: 22px; font-weight: 500; cursor: pointer;
+      background: var(--border); color: var(--text);
       transition: background 0.1s, transform 0.08s;
     }
     .step-btn:active { transform: scale(0.95); background: #3a3a3c; }
 
     .delay-presets { display: flex; gap: 8px; margin-top: 14px; }
-
     .preset-btn {
-      flex: 1;
-      height: 36px;
-      border-radius: 8px;
+      flex: 1; height: 36px; border-radius: 8px;
       border: 1.5px solid var(--border);
-      background: transparent;
-      color: var(--text-dim);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
+      background: transparent; color: var(--text-dim);
+      font-size: 13px; font-weight: 500; cursor: pointer;
       transition: all 0.12s;
     }
     .preset-btn:active { background: var(--border); }
     .preset-btn.active {
-      border-color: var(--accent);
-      color: var(--accent);
+      border-color: var(--accent); color: var(--accent);
       background: rgba(10,132,255,0.1);
     }
 
-    /* Skip-by-N row */
-    .skip-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-top: 12px;
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .toggle-label { font-size: 16px; font-weight: 500; }
+    .toggle {
+      width: 52px; height: 32px; border-radius: 18px;
+      background: var(--border); border: none;
+      position: relative; cursor: pointer;
+      transition: background 0.2s; flex-shrink: 0;
     }
-    .skip-btn {
-      height: 44px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.1s, transform 0.08s;
+    .toggle::after {
+      content: ""; position: absolute; top: 3px; left: 3px;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #fff; transition: transform 0.2s;
     }
-    .skip-btn:active { transform: scale(0.95); background: var(--border); }
+    .toggle.on { background: var(--good); }
+    .toggle.on::after { transform: translateX(20px); }
 
-    /* Segmented control (Linear / Random) */
+    .date-row { margin-top: 14px; }
+    .date-label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+    .date-input {
+      width: 100%; height: 44px; padding: 0 12px;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: #2c2c2e; color: var(--text);
+      font-size: 16px; font-family: inherit; color-scheme: dark;
+    }
+    .date-input:focus { outline: 1.5px solid var(--accent); border-color: var(--accent); }
+
     .segmented {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
-      background: #2c2c2e;
-      border-radius: 10px;
-      padding: 4px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      background: #2c2c2e; border-radius: 10px; padding: 4px;
     }
     .seg-btn {
-      height: 40px;
-      border: none;
-      background: transparent;
-      color: var(--text-dim);
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      border-radius: 8px;
+      height: 40px; border: none; background: transparent;
+      color: var(--text-dim); font-size: 15px; font-weight: 600;
+      cursor: pointer; border-radius: 8px;
       transition: background 0.15s, color 0.15s;
     }
-    .seg-btn.active {
-      background: var(--accent);
-      color: #fff;
-    }
+    .seg-btn.active { background: var(--accent); color: #fff; }
 
-    /* Album list */
-    .album-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .album-btn {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      width: 100%;
-      min-height: 44px;
-      padding: 0 14px;
-      border-radius: 10px;
-      border: 1.5px solid var(--border);
-      background: #2c2c2e;
-      color: var(--text);
-      font-size: 15px;
-      font-weight: 500;
-      text-align: left;
+    .pick-list { display: flex; flex-direction: column; gap: 6px; }
+    .pick-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; width: 100%; min-height: 44px; padding: 0 14px;
+      border-radius: 10px; border: 1.5px solid var(--border);
+      background: #2c2c2e; color: var(--text);
+      font-size: 15px; font-weight: 500; text-align: left;
       cursor: pointer;
       transition: background 0.12s, border-color 0.12s, transform 0.08s;
     }
-    .album-btn:active { transform: scale(0.98); }
-    .album-btn.active {
+    .pick-btn:active { transform: scale(0.98); }
+    .pick-btn.active {
       border-color: var(--accent);
       background: rgba(10,132,255,0.12);
       color: #fff;
     }
-    .album-type {
-      font-size: 11px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .album-empty {
-      color: var(--text-dim);
-      font-size: 13px;
-      padding: 4px 0;
+    .pick-empty { color: var(--text-dim); font-size: 13px; padding: 4px 0; }
+    .pick-tag {
+      font-size: 11px; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
     }
 
-    /* Birthday-mode controls */
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
+    /* ── Members card ───────────────────────────────────────────────── */
+    .member-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
     }
-    .toggle-label { font-size: 16px; font-weight: 500; }
-    .toggle {
-      width: 52px; height: 32px;
-      border-radius: 18px;
-      background: var(--border);
-      border: none;
-      position: relative;
+    .member-row + .member-row { margin-top: 6px; }
+    .member-code {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-weight: 700; letter-spacing: 2px;
+      font-size: 14px;
+    }
+    .member-name {
+      flex: 1; color: var(--text-dim); font-size: 13px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .icon-btn {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
       cursor: pointer;
-      transition: background 0.2s;
-      flex-shrink: 0;
+      font-size: 16px;
     }
-    .toggle::after {
-      content: "";
-      position: absolute;
-      top: 3px; left: 3px;
-      width: 26px; height: 26px;
-      border-radius: 50%;
-      background: #fff;
-      transition: transform 0.2s;
-    }
-    .toggle.on { background: #32d74b; }
-    .toggle.on::after { transform: translateX(20px); }
+    .icon-btn:active { background: var(--border); }
+    .icon-btn.add { color: var(--good); border-color: rgba(50,215,75,0.3); }
+    .icon-btn.remove { color: var(--danger); border-color: rgba(255,69,58,0.3); }
+    .icon-btn:disabled { opacity: 0.35; cursor: default; }
 
-    .date-row { margin-top: 14px; }
-    .date-label {
-      display: block;
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-bottom: 6px;
-    }
-    .date-input {
-      width: 100%;
-      height: 44px;
+    .members-empty { color: var(--text-dim); font-size: 13px; padding: 8px 0; }
+
+    .name-row { display: flex; gap: 8px; margin-top: 8px; }
+    .name-input {
+      flex: 1;
+      height: 40px;
       padding: 0 12px;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: #2c2c2e;
       color: var(--text);
-      font-size: 16px;
+      font-size: 14px;
       font-family: inherit;
-      color-scheme: dark;
     }
-    .date-input:focus { outline: 1.5px solid var(--accent); border-color: var(--accent); }
+    .name-input:focus { outline: 1.5px solid var(--accent); border-color: var(--accent); }
 
+    .save-btn {
+      height: 40px; padding: 0 14px;
+      border-radius: 10px; border: none;
+      background: var(--accent); color: #fff;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .save-btn:active { background: #1c92ff; }
+
+    /* connection status */
     #connection-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #ff453a;
-      display: inline-block;
-      margin-right: 6px;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--danger);
+      display: inline-block; margin-right: 6px;
       transition: background 0.3s;
     }
-    #connection-dot.connected { background: #32d74b; }
+    #connection-dot.connected { background: var(--good); }
     #conn-label { font-size: 12px; color: var(--text-dim); }
   </style>
 </head>
 <body>
-  <h1>Slideshow Remote</h1>
+  <!-- ── VIEW 1: Group picker ─────────────────────────────────────── -->
+  <div id="view-picker" class="view">
+    <div class="topbar">
+      <h1 style="flex: 1;">Slideshow Remote</h1>
+      <button class="gear-btn" id="open-groups" title="Manage groups">&#9881;</button>
+    </div>
 
-  <div class="card">
-    <div class="card-title">Album</div>
-    <div class="album-list" id="album-list">
-      <button class="album-btn <%= 'active' if @settings['selected_album_id'].nil? %>"
-              data-album-id="">All albums</button>
-      <% @albums.each do |id, name, type| %>
-        <button class="album-btn <%= 'active' if @settings['selected_album_id'].to_i == id %>"
-                data-album-id="<%= id %>">
-          <span><%= name %></span>
-          <% if type != 'local' %><span class="album-type"><%= type %></span><% end %>
-        </button>
-      <% end %>
-      <% if @albums.empty? %>
-        <div class="album-empty">No albums yet — drop JPEGs into <code>public/slides/</code>.</div>
-      <% end %>
+    <div class="card">
+      <div class="card-title">Screens &amp; Groups</div>
+      <div id="group-list" class="pick-list"></div>
+    </div>
+
+    <div>
+      <span id="connection-dot"></span>
+      <span id="conn-label">Connecting…</span>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Playback</div>
-    <button id="play-pause-btn">
-      <span id="pp-icon">&#9208;</span>
-      <span id="pp-label">Pause</span>
-    </button>
-    <div class="skip-row">
-      <button class="skip-btn" data-delta="-100">&minus;100</button>
-      <button class="skip-btn" data-delta="-10">&minus;10</button>
-      <button class="skip-btn" data-delta="10">+10</button>
-      <button class="skip-btn" data-delta="100">+100</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Play Mode</div>
-    <div class="segmented" id="play-mode">
-      <button class="seg-btn <%= 'active' if @settings['play_mode'] == 'linear' %>"
-              data-mode="linear">Linear</button>
-      <button class="seg-btn <%= 'active' if @settings['play_mode'] == 'random' %>"
-              data-mode="random">Random</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Navigation</div>
-    <button id="reset-btn">&#8617; Reset to beginning</button>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Slide Delay</div>
-    <div class="delay-row">
-      <div>
-        <div class="delay-display"><span id="delay-val">5</span></div>
-        <div class="delay-unit">seconds</div>
-      </div>
-      <div class="stepper">
-        <button class="step-btn" id="delay-up">+</button>
-        <button class="step-btn" id="delay-down">&minus;</button>
+  <!-- ── VIEW 3: Group management ─────────────────────────────────── -->
+  <div id="view-groups" class="view hidden">
+    <div class="topbar">
+      <button class="back-btn" id="back-from-groups">&larr;</button>
+      <div style="flex: 1; min-width: 0;">
+        <h1>Manage Groups</h1>
+        <div class="sub">Add or remove screens, rename groups</div>
       </div>
     </div>
-    <div class="delay-presets">
-      <button class="preset-btn" data-val="3">3s</button>
-      <button class="preset-btn active" data-val="5">5s</button>
-      <button class="preset-btn" data-val="10">10s</button>
-      <button class="preset-btn" data-val="15">15s</button>
-      <button class="preset-btn" data-val="30">30s</button>
+
+    <div class="card">
+      <div id="groups-config"></div>
+    </div>
+
+    <div class="card muted" style="font-size: 13px; line-height: 1.5;">
+      <strong>Tip:</strong> Tap <span style="color: var(--good); font-weight: 700;">+</span> on a
+      screen to move it into a group. Tap <span style="color: var(--danger); font-weight: 700;">×</span>
+      on a member to split it off into its own group. Empty groups are removed automatically.
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Birthday Mode</div>
-    <div class="toggle-row">
-      <span class="toggle-label">Show timeline</span>
-      <button id="birthday-toggle"
-              class="toggle <%= 'on' if @settings['birthday_mode'] %>"
-              aria-label="Toggle birthday mode"></button>
+  <!-- ── VIEW 2: Group control ────────────────────────────────────── -->
+  <div id="view-control" class="view hidden">
+    <div class="topbar">
+      <button class="back-btn" id="back-to-picker">&larr;</button>
+      <div style="flex: 1; min-width: 0;">
+        <h1 id="control-title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Group</h1>
+        <div class="sub" id="control-subtitle"></div>
+      </div>
     </div>
-    <div class="date-row">
-      <label class="date-label" for="birthday-input">Birthday</label>
-      <input id="birthday-input"
-             class="date-input"
-             type="date"
-             value="<%= @settings['birthday'] %>">
+
+    <div class="card">
+      <div class="card-title">Album</div>
+      <div id="album-list" class="pick-list"></div>
     </div>
+
+    <div class="card">
+      <div class="card-title">Playback</div>
+      <button id="play-pause-btn">
+        <span id="pp-icon">&#9208;</span>
+        <span id="pp-label">Pause</span>
+      </button>
+      <div class="skip-row">
+        <button class="skip-btn" data-delta="-100">&minus;100</button>
+        <button class="skip-btn" data-delta="-10">&minus;10</button>
+        <button class="skip-btn" data-delta="10">+10</button>
+        <button class="skip-btn" data-delta="100">+100</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Play Mode</div>
+      <div class="segmented" id="play-mode">
+        <button class="seg-btn" data-mode="linear">Linear</button>
+        <button class="seg-btn" data-mode="random">Random</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Navigation</div>
+      <button id="reset-btn">&#8617; Reset to beginning</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Slide Delay</div>
+      <div class="delay-row">
+        <div>
+          <div class="delay-display"><span id="delay-val">5</span></div>
+          <div class="delay-unit">seconds</div>
+        </div>
+        <div class="stepper">
+          <button class="step-btn" id="delay-up">+</button>
+          <button class="step-btn" id="delay-down">&minus;</button>
+        </div>
+      </div>
+      <div class="delay-presets">
+        <button class="preset-btn" data-val="3">3s</button>
+        <button class="preset-btn" data-val="5">5s</button>
+        <button class="preset-btn" data-val="10">10s</button>
+        <button class="preset-btn" data-val="15">15s</button>
+        <button class="preset-btn" data-val="30">30s</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Birthday Mode</div>
+      <div class="toggle-row">
+        <span class="toggle-label">Show timeline</span>
+        <button id="birthday-toggle" class="toggle" aria-label="Toggle birthday mode"></button>
+      </div>
+      <div class="date-row">
+        <label class="date-label" for="birthday-input">Birthday</label>
+        <input id="birthday-input" class="date-input" type="date">
+      </div>
+    </div>
+
   </div>
 
-  <div>
-    <span id="connection-dot"></span>
-    <span id="conn-label">Connecting&hellip;</span>
-  </div>
+  <script type="application/json" id="boot">
+    <%= {
+          command_url:    remote_command_path,
+          settings_url:   remote_settings_path,
+          settings:       @settings,
+          albums:         @albums,
+          screens:        @screens,
+          groups:         @groups
+        }.to_json.html_safe %>
+  </script>
 
   <script type="module">
     import { subscribeChannel } from "/javascript/cable.js";
 
-    const COMMAND_URL = "<%= remote_command_path %>";
-    let playing       = true;
-    let delay         = 5;
-    let birthdayMode  = <%= @settings['birthday_mode'] ? 'true' : 'false' %>;
-    let birthday      = <%= @settings['birthday'].to_s.empty? ? 'null' : @settings['birthday'].to_json.html_safe %>;
+    const CFG    = JSON.parse(document.getElementById("boot").textContent);
+    const STATE  = {
+      albums:   CFG.albums,
+      screens:  CFG.screens,
+      groups:   CFG.groups,
+      settings: CFG.settings,
+      selectedGroupId: null  // null → picker view
+    };
 
+    // Persist which group the phone last had selected.
+    const REMEMBER_KEY = "slideshow.remote.lastGroupId";
+    const remembered = parseInt(localStorage.getItem(REMEMBER_KEY) || "", 10);
+    if (Number.isFinite(remembered) && STATE.groups.find(g => g.id === remembered)) {
+      STATE.selectedGroupId = remembered;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────
     async function send(params) {
-      await fetch(COMMAND_URL, {
+      const merged = Object.assign({}, params);
+      if (STATE.selectedGroupId != null) merged.target_group_id = STATE.selectedGroupId;
+      await fetch(CFG.command_url, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams(params).toString()
+        body: encodeForm(merged)
       });
     }
 
-    // ── Delay ────────────────────────────────────────────────────────────
-    function setDelay(val) {
-      delay = Math.max(1, val);
-      document.getElementById("delay-val").textContent = delay;
-      document.querySelectorAll(".preset-btn").forEach(b => {
-        b.classList.toggle("active", parseInt(b.dataset.val) === delay);
+    // Same as send() but immediately re-pulls fresh state and re-renders.
+    // Used by the group-management buttons so the UI updates even if a
+    // broadcast never arrives.
+    async function sendAndRefresh(params) {
+      await fetch(CFG.command_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: encodeForm(params)
       });
-      send({ action_name: "set_delay", delay });
+      await refreshFromServer();
     }
 
-    // ── Play/Pause ───────────────────────────────────────────────────────
-    function setPlaying(val) {
-      playing = val;
-      const btn   = document.getElementById("play-pause-btn");
-      const icon  = document.getElementById("pp-icon");
-      const label = document.getElementById("pp-label");
-      if (playing) {
-        btn.className = "";
-        icon.textContent  = "⏸";
-        label.textContent = "Pause";
-      } else {
-        btn.className = "paused";
-        icon.textContent  = "▶";
-        label.textContent = "Play";
+    function encodeForm(obj) {
+      const parts = [];
+      for (const [k, v] of Object.entries(obj)) {
+        if (Array.isArray(v)) {
+          for (const item of v) parts.push(encodeURIComponent(k + "[]") + "=" + encodeURIComponent(item));
+        } else if (v !== undefined && v !== null) {
+          parts.push(encodeURIComponent(k) + "=" + encodeURIComponent(v));
+        }
+      }
+      return parts.join("&");
+    }
+
+    function currentGroup() {
+      return STATE.groups.find(g => g.id === STATE.selectedGroupId) || null;
+    }
+    function isOnline(iso) {
+      if (!iso) return false;
+      return (Date.now() - new Date(iso).getTime()) < 60_000;
+    }
+    function groupOnline(g) {
+      return g.screens.some(s => isOnline(s.last_seen_at));
+    }
+
+    // ── View routing ──────────────────────────────────────────────────
+    const viewPicker  = document.getElementById("view-picker");
+    const viewControl = document.getElementById("view-control");
+    const viewGroups  = document.getElementById("view-groups");
+    let   currentView = "picker"; // "picker" | "control" | "groups"
+
+    function showPicker() {
+      currentView = "picker";
+      STATE.selectedGroupId = null;
+      localStorage.removeItem(REMEMBER_KEY);
+      viewPicker.classList.remove("hidden");
+      viewControl.classList.add("hidden");
+      viewGroups.classList.add("hidden");
+      renderPicker();
+    }
+
+    function showControl() {
+      if (STATE.selectedGroupId == null) return showPicker();
+      currentView = "control";
+      localStorage.setItem(REMEMBER_KEY, String(STATE.selectedGroupId));
+      viewPicker.classList.add("hidden");
+      viewControl.classList.remove("hidden");
+      viewGroups.classList.add("hidden");
+      renderControl();
+    }
+
+    function showGroups() {
+      currentView = "groups";
+      viewPicker.classList.add("hidden");
+      viewControl.classList.add("hidden");
+      viewGroups.classList.remove("hidden");
+      renderGroupsConfig();
+    }
+
+    document.getElementById("back-to-picker").addEventListener("click", showPicker);
+    document.getElementById("open-groups").addEventListener("click", showGroups);
+    document.getElementById("back-from-groups").addEventListener("click", showPicker);
+
+    // ── Picker view ───────────────────────────────────────────────────
+    const groupList = document.getElementById("group-list");
+
+    function renderPicker() {
+      groupList.innerHTML = "";
+
+      if (STATE.groups.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "pick-empty";
+        empty.textContent = "No screens connected yet — open / on a big screen.";
+        groupList.appendChild(empty);
+        return;
+      }
+
+      for (const g of STATE.groups) {
+        const card = document.createElement("div");
+        card.className = "pick-btn group-card";
+        card.dataset.groupId = String(g.id);
+
+        const head = document.createElement("div");
+        head.className = "group-card-head";
+
+        const dot = document.createElement("span");
+        dot.className = "screen-dot" + (groupOnline(g) ? " online" : "");
+        head.appendChild(dot);
+
+        const name = document.createElement("span");
+        name.className = "group-name";
+        name.textContent = g.display_name;
+        head.appendChild(name);
+
+        const stateIcon = document.createElement("span");
+        stateIcon.className = "group-state-icon";
+        stateIcon.textContent = g.playing ? "▶" : "⏸";
+        head.appendChild(stateIcon);
+
+        card.appendChild(head);
+
+        const meta = document.createElement("div");
+        meta.className = "group-card-meta";
+
+        // Screen pills
+        for (const s of g.screens) {
+          const pill = document.createElement("span");
+          pill.className = "screen-pill";
+          pill.textContent = s.code;
+          meta.appendChild(pill);
+        }
+
+        // Album label
+        const album = STATE.albums.find(a => a.id === g.selected_album_id);
+        const albumLabel = document.createElement("span");
+        albumLabel.textContent = (album ? album.name : "All albums") + " · " + g.play_mode + " · " + g.delay_seconds + "s";
+        meta.appendChild(albumLabel);
+
+        card.appendChild(meta);
+        card.addEventListener("click", () => {
+          STATE.selectedGroupId = g.id;
+          showControl();
+        });
+        groupList.appendChild(card);
       }
     }
 
+    // ── Control view ──────────────────────────────────────────────────
+    const controlTitle    = document.getElementById("control-title");
+    const controlSubtitle = document.getElementById("control-subtitle");
+    const albumList       = document.getElementById("album-list");
+
+    function renderControl() {
+      const g = currentGroup();
+      if (!g) { showPicker(); return; }
+
+      controlTitle.textContent = g.display_name;
+      controlSubtitle.textContent = g.screens.length === 1
+        ? "1 screen"
+        : `${g.screens.length} screens`;
+
+      renderAlbumList(g);
+      renderPlayPause(g);
+      renderPlayMode(g);
+      renderDelay(g);
+      renderBirthday();
+    }
+
+    function renderAlbumList(g) {
+      albumList.innerHTML = "";
+      const opts = [{ id: null, name: "All albums" }].concat(STATE.albums.map(a => ({ id: a.id, name: a.name, type: a.type })));
+      for (const opt of opts) {
+        const btn = document.createElement("button");
+        const isActive = (opt.id === null && g.selected_album_id == null) ||
+                         (opt.id != null && g.selected_album_id === opt.id);
+        btn.className = "pick-btn" + (isActive ? " active" : "");
+        btn.dataset.albumId = opt.id == null ? "" : String(opt.id);
+
+        const name = document.createElement("span");
+        name.textContent = opt.name;
+        btn.appendChild(name);
+
+        if (opt.type && opt.type !== "local") {
+          const tag = document.createElement("span");
+          tag.className = "pick-tag";
+          tag.textContent = opt.type;
+          btn.appendChild(tag);
+        }
+        btn.addEventListener("click", () => {
+          send({ action_name: "set_album", album_id: btn.dataset.albumId });
+        });
+        albumList.appendChild(btn);
+      }
+    }
+
+    function renderPlayPause(g) {
+      const btn  = document.getElementById("play-pause-btn");
+      const icon = document.getElementById("pp-icon");
+      const lbl  = document.getElementById("pp-label");
+      if (g.playing) {
+        btn.className = "";       icon.textContent = "⏸"; lbl.textContent = "Pause";
+      } else {
+        btn.className = "paused"; icon.textContent = "▶"; lbl.textContent = "Play";
+      }
+    }
+
+    function renderPlayMode(g) {
+      document.querySelectorAll("#play-mode .seg-btn").forEach(b => {
+        b.classList.toggle("active", b.dataset.mode === g.play_mode);
+      });
+    }
+
+    function renderDelay(g) {
+      document.getElementById("delay-val").textContent = g.delay_seconds;
+      document.querySelectorAll(".preset-btn").forEach(b => {
+        b.classList.toggle("active", parseInt(b.dataset.val, 10) === g.delay_seconds);
+      });
+    }
+
+    function renderBirthday() {
+      const g = currentGroup();
+      if (!g) return;
+      const tog = document.getElementById("birthday-toggle");
+      const inp = document.getElementById("birthday-input");
+      tog.classList.toggle("on", !!g.birthday_mode);
+      inp.value = g.birthday || "";
+    }
+
+    // ── Groups management view ────────────────────────────────────────
+    const groupsConfig = document.getElementById("groups-config");
+
+    function renderGroupsConfig() {
+      groupsConfig.innerHTML = "";
+
+      if (STATE.groups.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "pick-empty";
+        empty.textContent = "No screens connected yet — open / on a big screen.";
+        groupsConfig.appendChild(empty);
+        return;
+      }
+
+      for (const g of STATE.groups) {
+        const section = document.createElement("div");
+        section.className = "group-section";
+
+        // Title row: display name + member codes
+        const title = document.createElement("div");
+        title.className = "group-section-title";
+        title.textContent = g.display_name;
+        const codes = document.createElement("span");
+        codes.className = "group-section-codes";
+        codes.textContent = g.screens.map(s => s.code).join(" + ");
+        title.appendChild(codes);
+        section.appendChild(title);
+
+        // Rename
+        const nameRow = document.createElement("div");
+        nameRow.className = "name-row";
+        const nameInput = document.createElement("input");
+        nameInput.className = "name-input";
+        nameInput.type = "text";
+        nameInput.placeholder = "Group name (e.g. Living room)";
+        nameInput.value = g.name || "";
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "save-btn";
+        saveBtn.textContent = "Save";
+        saveBtn.addEventListener("click", () => {
+          sendAndRefresh({
+            action_name: "rename_group",
+            target_group_id: g.id,
+            name: nameInput.value
+          });
+        });
+        nameRow.appendChild(nameInput);
+        nameRow.appendChild(saveBtn);
+        section.appendChild(nameRow);
+
+        // Members
+        const memHead = document.createElement("div");
+        memHead.className = "subhead";
+        memHead.textContent = "Members";
+        section.appendChild(memHead);
+
+        for (const s of g.screens) {
+          section.appendChild(memberRow(s, g, "remove"));
+        }
+
+        // Other screens (those NOT currently in this group)
+        const memberIds = new Set(g.screens.map(s => s.id));
+        const others = STATE.screens.filter(s => !memberIds.has(s.id));
+        if (others.length > 0) {
+          const addHead = document.createElement("div");
+          addHead.className = "subhead";
+          addHead.textContent = "Add screens to this group";
+          section.appendChild(addHead);
+          for (const s of others) {
+            section.appendChild(memberRow(s, g, "add"));
+          }
+        }
+
+        groupsConfig.appendChild(section);
+      }
+    }
+
+    function memberRow(s, group, mode) {
+      const row = document.createElement("div");
+      row.className = "member-row";
+
+      const dot = document.createElement("span");
+      dot.className = "screen-dot" + (isOnline(s.last_seen_at) ? " online" : "");
+      row.appendChild(dot);
+
+      const code = document.createElement("span");
+      code.className = "member-code";
+      code.textContent = s.code;
+      row.appendChild(code);
+
+      const nick = document.createElement("span");
+      nick.className = "member-name";
+      nick.textContent = s.nickname || "";
+      row.appendChild(nick);
+
+      const btn = document.createElement("button");
+      btn.className = "icon-btn " + (mode === "remove" ? "remove" : "add");
+      btn.textContent = mode === "remove" ? "×" : "+";
+
+      if (mode === "remove") {
+        btn.title = "Remove from group";
+        // Can't remove the only member — every screen must be in some group
+        btn.disabled = group.screens.length === 1;
+        btn.addEventListener("click", () => {
+          sendAndRefresh({ action_name: "remove_screen_from_group", screen_id: s.id });
+        });
+      } else {
+        btn.title = "Add to this group";
+        btn.addEventListener("click", () => {
+          sendAndRefresh({
+            action_name: "add_screens_to_group",
+            target_group_id: group.id,
+            screen_ids: [s.id]
+          });
+        });
+      }
+      row.appendChild(btn);
+      return row;
+    }
+
+    // ── Wire up control inputs ────────────────────────────────────────
     document.getElementById("play-pause-btn").addEventListener("click", () => {
-      const next = !playing;
-      setPlaying(next);
-      send({ action_name: next ? "play" : "pause" });
+      const g = currentGroup(); if (!g) return;
+      send({ action_name: g.playing ? "pause" : "play" });
     });
 
     document.getElementById("reset-btn").addEventListener("click", () => {
-      setPlaying(true);
       send({ action_name: "reset" });
-    });
-
-    // ── Album selection ─────────────────────────────────────────────────
-    const albumList = document.getElementById("album-list");
-
-    function wireAlbumButtons() {
-      albumList.querySelectorAll(".album-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          albumList.querySelectorAll(".album-btn")
-            .forEach(b => b.classList.toggle("active", b === btn));
-          send({ action_name: "set_album", album_id: btn.dataset.albumId });
-        });
-      });
-    }
-
-    function currentlySelectedAlbum() {
-      const active = albumList.querySelector(".album-btn.active");
-      return active ? active.dataset.albumId : "";
-    }
-
-    // Rebuild the album buttons from a fresh list pushed over Action Cable.
-    function rebuildAlbumList(albums) {
-      const selected = currentlySelectedAlbum();
-      albumList.innerHTML = "";
-
-      const allBtn = document.createElement("button");
-      allBtn.className = "album-btn" + (selected === "" ? " active" : "");
-      allBtn.dataset.albumId = "";
-      allBtn.textContent = "All albums";
-      albumList.appendChild(allBtn);
-
-      for (const a of albums) {
-        const btn = document.createElement("button");
-        btn.className = "album-btn" + (String(a.id) === selected ? " active" : "");
-        btn.dataset.albumId = String(a.id);
-
-        const nameSpan = document.createElement("span");
-        nameSpan.textContent = a.name;
-        btn.appendChild(nameSpan);
-
-        if (a.type && a.type !== "local") {
-          const typeSpan = document.createElement("span");
-          typeSpan.className = "album-type";
-          typeSpan.textContent = a.type;
-          btn.appendChild(typeSpan);
-        }
-        albumList.appendChild(btn);
-      }
-
-      if (albums.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "album-empty";
-        empty.innerHTML = 'No albums yet — drop JPEGs into <code>slides/</code>.';
-        albumList.appendChild(empty);
-      }
-
-      wireAlbumButtons();
-
-      // If the album we had selected has just vanished, fall back to "All".
-      const stillExists =
-        selected === "" || albums.some(a => String(a.id) === selected);
-      if (!stillExists) {
-        send({ action_name: "set_album", album_id: "" });
-      }
-    }
-
-    wireAlbumButtons();
-
-    // ── Play mode (linear / random) ──────────────────────────────────────
-    document.querySelectorAll("#play-mode .seg-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#play-mode .seg-btn")
-          .forEach(b => b.classList.toggle("active", b === btn));
-        send({ action_name: "set_play_mode", mode: btn.dataset.mode });
-      });
     });
 
     document.querySelectorAll(".skip-btn").forEach(btn => {
@@ -527,41 +877,117 @@
       });
     });
 
-    document.getElementById("delay-up").addEventListener("click",   () => setDelay(delay + 1));
-    document.getElementById("delay-down").addEventListener("click", () => setDelay(delay - 1));
+    document.querySelectorAll("#play-mode .seg-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        send({ action_name: "set_play_mode", mode: btn.dataset.mode });
+      });
+    });
 
+    document.getElementById("delay-up").addEventListener("click", () => {
+      const g = currentGroup(); if (!g) return;
+      send({ action_name: "set_delay", delay: g.delay_seconds + 1 });
+    });
+    document.getElementById("delay-down").addEventListener("click", () => {
+      const g = currentGroup(); if (!g) return;
+      send({ action_name: "set_delay", delay: Math.max(1, g.delay_seconds - 1) });
+    });
     document.querySelectorAll(".preset-btn").forEach(btn => {
-      btn.addEventListener("click", () => setDelay(parseInt(btn.dataset.val)));
+      btn.addEventListener("click", () => {
+        send({ action_name: "set_delay", delay: parseInt(btn.dataset.val, 10) });
+      });
     });
 
-    // ── Birthday Mode ────────────────────────────────────────────────────
-    const toggle      = document.getElementById("birthday-toggle");
-    const dateInput   = document.getElementById("birthday-input");
-
-    toggle.addEventListener("click", () => {
-      birthdayMode = !birthdayMode;
-      toggle.classList.toggle("on", birthdayMode);
-      send({ action_name: "set_birthday_mode", enabled: birthdayMode });
+    document.getElementById("birthday-toggle").addEventListener("click", (e) => {
+      const g = currentGroup();
+      if (!g) return;
+      const next = !g.birthday_mode;
+      // Optimistic update so the toggle visually flips immediately
+      g.birthday_mode = next;
+      e.currentTarget.classList.toggle("on", next);
+      send({ action_name: "set_birthday_mode", enabled: next });
+    });
+    document.getElementById("birthday-input").addEventListener("change", (e) => {
+      const g = currentGroup();
+      if (!g) return;
+      const v = e.currentTarget.value || "";
+      g.birthday = v || null;
+      send({ action_name: "set_birthday", birthday: v });
     });
 
-    dateInput.addEventListener("change", () => {
-      birthday = dateInput.value || null;
-      send({ action_name: "set_birthday", birthday: birthday || "" });
-    });
-
-    // ── Connection status ────────────────────────────────────────────────
+    // ── Live updates from server ──────────────────────────────────────
     const dot   = document.getElementById("connection-dot");
     const label = document.getElementById("conn-label");
 
+    async function refreshFromServer() {
+      try {
+        const r = await fetch(CFG.settings_url);
+        const j = await r.json();
+        STATE.settings = j.settings;
+        STATE.albums   = j.albums;
+        STATE.screens  = j.screens;
+        STATE.groups   = j.groups;
+        rerender();
+      } catch (e) {}
+    }
+
+    function applyGroupPatch(patch) {
+      // Update the matching group in STATE.groups (if we have it).
+      const g = STATE.groups.find(g => g.id === patch.id);
+      if (!g) return;
+      Object.assign(g, patch);
+      rerender();
+    }
+
+    function rerender() {
+      // Drop selection if the group disappeared
+      if (STATE.selectedGroupId != null &&
+          !STATE.groups.find(g => g.id === STATE.selectedGroupId)) {
+        if (currentView === "control") { showPicker(); return; }
+      }
+      if      (currentView === "picker")  renderPicker();
+      else if (currentView === "control") renderControl();
+      else if (currentView === "groups")  renderGroupsConfig();
+    }
+
     subscribeChannel("SlideshowChannel", {
-      connected()    { dot.className = "connected"; label.textContent = "Connected"; },
+      connected()    { dot.className = "connected"; label.textContent = "Connected"; refreshFromServer(); },
       disconnected() { dot.className = "";          label.textContent = "Disconnected"; },
       received(data) {
-        if (data && data.action === "albums_changed" && Array.isArray(data.albums)) {
-          rebuildAlbumList(data.albums);
+        if (!data) return;
+        if (data.action === "albums_changed" && Array.isArray(data.albums)) {
+          STATE.albums = data.albums;
+          rerender();
+          return;
         }
+        if (data.action === "screens_changed") {
+          if (Array.isArray(data.screens)) STATE.screens = data.screens;
+          if (Array.isArray(data.groups))  STATE.groups  = data.groups;
+          rerender();
+          return;
+        }
+        // Reflect playback / settings changes pushed by *any* remote so
+        // the UI stays in sync.
+        const g = STATE.groups.find(
+          x => Array.isArray(data.target_screen_ids) ? x.screen_ids?.some(id => data.target_screen_ids.includes(id))
+                                                     : true
+        );
+        let touched = false;
+        switch (data.action) {
+          case "play":          if (g) { g.playing = true;  touched = true; } break;
+          case "pause":         if (g) { g.playing = false; touched = true; } break;
+          case "set_delay":     if (g) { g.delay_seconds = data.delay; touched = true; } break;
+          case "set_play_mode": if (g) { g.play_mode = data.mode; touched = true; } break;
+          case "set_album":     if (g) { g.selected_album_id = data.album_id; touched = true; } break;
+          case "set_birthday_mode": if (g) { g.birthday_mode = !!data.enabled; touched = true; } break;
+          case "set_birthday":      if (g) { g.birthday = data.birthday || null; touched = true; } break;
+        }
+        if (touched) rerender();
       }
     });
+
+    // ── Boot ──────────────────────────────────────────────────────────
+    if (STATE.selectedGroupId != null) showControl();
+    else                                 showPicker();
   </script>
 </body>
 </html>

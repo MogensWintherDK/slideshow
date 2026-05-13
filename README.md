@@ -2,9 +2,9 @@
 
 A simple local-network photo slideshow with a phone remote.
 
-- **Big screen** → `http://YOUR-IP:3000/` — full-screen slideshow
-- **Phone remote** → `http://YOUR-IP:3000/remote` — play/pause, reset, delay, mode
-- **Admin** → `http://YOUR-IP:3000/admin` — inspect the database, trigger reindex
+- **Big screen** → `http://YOUR-IP:3000/` — full-screen slideshow (multi-screen supported; each browser gets a 4-character ID)
+- **Phone remote** → `http://YOUR-IP:3000/remote` — pick which screen to control, play/pause, reset, delay, mode
+- **Admin** → `http://YOUR-IP:3000/admin` — inspect the database, see what each screen is showing live, nickname your screens, trigger reindex
 
 For how it all works under the hood, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -40,6 +40,7 @@ If you had photos in `public/slides/` from earlier versions, `bin/start` moves t
 
 | Control | Effect |
 |---|---|
+| Screen | Pick which big screen to control, or "All screens" |
 | Album | Pick which album to play, or "All albums" |
 | Play / Pause | Toggles automatic advancement |
 | -100 / -10 / +10 / +100 | Jump forwards or backwards |

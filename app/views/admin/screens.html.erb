@@ -1,0 +1,108 @@
+<h2>Screens <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;"><%= @screens.size %> known · <%= @groups.size %> groups</span></h2>
+
+<div class="card muted" style="margin-bottom: 16px; font-size: 13px;">
+  Each browser that opens <code>/</code> is registered as a screen and identified by a 4-character code shown at the top-left of the slideshow (and prominently when it first loads). Identity is held in a signed cookie. Screens are organised into <strong>groups</strong> (Sonos-style); every screen is in exactly one group. Album, play mode, delay and play/pause are properties of the group, so screens in the same group play in sync. Group management — adding / removing screens, renaming — happens from the phone remote.
+</div>
+
+<% if @screens.any? %>
+  <div class="screen-grid">
+    <% @screens.each do |s| %>
+      <% online = s.last_seen_at && (Time.current - s.last_seen_at) < 60 %>
+      <% g = s.screen_group %>
+      <div class="screen-card">
+        <div class="screen-card-head">
+          <span class="screen-dot <%= 'online' if online %>"></span>
+          <span class="screen-code"><%= s.code %></span>
+          <span class="screen-nick"><%= s.nickname.presence || "no nickname" %></span>
+        </div>
+
+        <div class="screen-preview">
+          <% if s.current_image %>
+            <img src="<%= s.current_image.url %>"
+                 loading="lazy"
+                 data-screen-id="<%= s.id %>"
+                 data-current-image-id="<%= s.current_image_id %>"
+                 alt="">
+          <% else %>
+            <span data-screen-id="<%= s.id %>" data-current-image-id="">Idle</span>
+          <% end %>
+        </div>
+
+        <%= form_with url: admin_screen_path(s), method: :patch, local: true, class: "inline" do |f| %>
+          <%= f.text_field :nickname,
+                value: s.nickname,
+                placeholder: "Nickname (e.g. Living room)",
+                style: "flex: 1;" %>
+          <%= f.submit "Save", class: "btn subtle" %>
+        <% end %>
+
+        <div class="row-actions">
+          <%= button_to "Delete screen",
+                admin_screen_path(s),
+                method: :delete,
+                class: "btn danger",
+                form: { onsubmit: "return confirm('Delete screen #{s.code}? This removes its record from the database; if its browser is ever reopened it will get a fresh code.');" } %>
+        </div>
+
+        <div class="screen-footer">
+          <span>
+            <% if s.last_seen_at %>Last seen <%= time_ago_in_words(s.last_seen_at) %> ago
+            <% else %>Never connected<% end %>
+          </span>
+          <span>
+            Group: <strong><%= g&.display_name || "—" %></strong>
+            <% if g && g.screens.size > 1 %>
+              <span class="muted">(<%= g.screens.size %> screens)</span>
+            <% end %>
+          </span>
+          <span>
+            <% if g %>
+              <%= g.selected_album&.name || "all albums" %> · <%= g.play_mode %> · <%= g.delay_seconds %>s
+            <% end %>
+          </span>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% else %>
+  <div class="card muted">
+    No screens have connected yet. Open <code>/</code> on a big screen and refresh this page.
+  </div>
+<% end %>
+
+<script>
+  async function refresh() {
+    try {
+      const r = await fetch("/admin/screens.json");
+      const j = await r.json();
+      const byId = new Map();
+      for (const s of j.screens) byId.set(String(s.id), s);
+
+      document.querySelectorAll(".screen-preview [data-screen-id]").forEach(node => {
+        const s = byId.get(node.dataset.screenId);
+        if (!s) return;
+        const newId = s.current_image ? String(s.current_image.id) : "";
+        if (node.dataset.currentImageId === newId) return;
+
+        const container = node.parentElement;
+        container.innerHTML = "";
+        if (s.current_image) {
+          const img = document.createElement("img");
+          img.src = s.current_image.url;
+          img.loading = "lazy";
+          img.dataset.screenId = String(s.id);
+          img.dataset.currentImageId = newId;
+          img.alt = "";
+          container.appendChild(img);
+        } else {
+          const span = document.createElement("span");
+          span.dataset.screenId = String(s.id);
+          span.dataset.currentImageId = "";
+          span.textContent = "Idle";
+          container.appendChild(span);
+        }
+      });
+    } catch (e) {}
+  }
+  setInterval(refresh, 3000);
+</script>

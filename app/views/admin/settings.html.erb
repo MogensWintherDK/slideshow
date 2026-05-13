@@ -1,4 +1,10 @@
-<h2>Settings</h2>
+<h2>Settings <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;">legacy</span></h2>
+
+<div class="card muted" style="margin-bottom: 16px; font-size: 13px;">
+  Per-group settings (album, play mode, delay, play/pause, birthday timeline) are stored on the
+  <a href="<%= admin_groups_path %>">screen groups</a>. Per-screen identity (code, nickname, last seen, current image) is on the
+  <a href="<%= admin_screens_path %>">screens</a>. The <code>settings</code> table below is retained for future global flags but currently isn't used.
+</div>
 
 <% if @settings.any? %>
   <table>
@@ -14,15 +20,8 @@
         <tr>
           <td class="mono"><%= s.key %></td>
           <td class="mono">
-            <%
-              decoded = (JSON.parse(s.value) rescue s.value)
-              display = case decoded
-                        when nil then "null"
-                        when true, false then decoded.to_s
-                        else decoded.to_s
-                        end
-            %>
-            <%= display.presence || "—" %>
+            <% decoded = (JSON.parse(s.value) rescue s.value) %>
+            <%= decoded.to_s.presence || "—" %>
           </td>
           <td class="mono"><%= s.updated_at.strftime("%Y-%m-%d %H:%M") %></td>
         </tr>
@@ -30,15 +29,5 @@
     </tbody>
   </table>
 <% else %>
-  <div class="card muted">No settings rows.</div>
+  <div class="card muted">The settings table is currently empty.</div>
 <% end %>
-
-<h3>Defaults</h3>
-<div class="card muted" style="font-size: 13px;">
-  Defined in <code>SettingsStore::DEFAULTS</code>:
-  <ul style="margin-top: 8px; margin-left: 18px;">
-    <% SettingsStore::DEFAULTS.each do |k, v| %>
-      <li><code><%= k %></code> = <code><%= v.inspect %></code></li>
-    <% end %>
-  </ul>
-</div>

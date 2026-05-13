@@ -1,0 +1,87 @@
+<h2>Screen Groups <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;"><%= @groups.size %> total</span></h2>
+
+<div class="card muted" style="margin-bottom: 16px; font-size: 13px;">
+  All playback settings (album, play mode, delay, play/pause, birthday timeline) are stored per <strong>screen group</strong> in the <code>screen_groups</code> table — not in the legacy <code>settings</code> table. Group membership and grouping itself happens from the phone remote (tap the gear icon on the picker).
+</div>
+
+<% if @groups.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th>Group</th>
+        <th>Screens</th>
+        <th>Album</th>
+        <th>Mode</th>
+        <th class="num">Delay</th>
+        <th>State</th>
+        <th>Birthday</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @groups.each do |g| %>
+        <tr>
+          <td>
+            <strong><%= g.display_name %></strong>
+            <% if g.name.present? && g.name != g.display_name %>
+              <div class="muted" style="font-size: 12px;"><%= g.display_name %></div>
+            <% end %>
+          </td>
+          <td class="mono">
+            <% if g.screens.any? %>
+              <%= g.screens.order(:code).map(&:code).join(" + ") %>
+              <% nicks = g.screens.map(&:nickname).compact.reject(&:empty?) %>
+              <% if nicks.any? %>
+                <div class="muted" style="font-size: 12px;"><%= nicks.join(", ") %></div>
+              <% end %>
+            <% else %>
+              <span class="muted">(empty)</span>
+            <% end %>
+          </td>
+          <td>
+            <% if g.selected_album %>
+              <a href="<%= admin_album_path(g.selected_album) %>"><%= g.selected_album.name %></a>
+            <% else %>
+              <span class="muted">all albums</span>
+            <% end %>
+          </td>
+          <td><%= g.play_mode %></td>
+          <td class="num"><%= g.delay_seconds %>s</td>
+          <td>
+            <% if g.playing %>
+              <span style="color: var(--good);">&#9654; playing</span>
+            <% else %>
+              <span class="muted">&#9208; paused</span>
+            <% end %>
+          </td>
+          <td class="mono">
+            <% if g.birthday_mode && g.birthday.present? %>
+              on · <%= g.birthday %>
+            <% elsif g.birthday_mode %>
+              <span class="muted">on (no date)</span>
+            <% else %>
+              <span class="muted">off</span>
+            <% end %>
+          </td>
+          <td>
+            <%
+              n = g.screens.size
+              prompt = if n.zero?
+                         "Delete this empty group?"
+                       else
+                         "Delete group #{g.display_name} and its #{n} screen#{'s' if n != 1}? This removes them from the database."
+                       end
+            %>
+            <%= button_to "Delete",
+                  destroy_admin_group_path(g),
+                  method: :delete,
+                  class: "btn danger",
+                  form: { onsubmit: "return confirm(#{prompt.to_json});" } %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <div class="card muted">No groups yet. Open <code>/</code> on a big screen — a group is created automatically for each new screen.</div>
+<% end %>

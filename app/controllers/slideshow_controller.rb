@@ -1,26 +1,17 @@
 class SlideshowController < ApplicationController
+  include ScreenIdentity
+
   layout false
 
-  # The display page is now a thin shell. All image data is fetched
-  # incrementally by the client via #playlist.
+  skip_before_action :verify_authenticity_token, only: :update_state
+
   def display
-    @settings    = SettingsStore.read
-    @total       = playlist_scope.count
-    @indexing    = @total.zero? && Album.count.zero?
-    @albums      = Album.order(:name).pluck(:id, :name, :album_type)
+    @screen   = current_screen
+    @group    = @screen.screen_group
+    @total    = playlist_scope.count
+    @indexing = @total.zero? && Album.count.zero?
   end
 
-  # GET /slideshow/albums/:album_id/images/:image_id
-  #
-  # Streams the JPEG bytes for an image. The album_id in the path is
-  # validated against the record so a stale URL can't cross-reference
-  # the wrong album.
-  #
-  # Caching: we send a strong ETag and Last-Modified derived from the
-  # file's id + mtime, plus `Cache-Control: public, max-age=1 year`.
-  # The browser keeps the bytes forever; if the image is re-indexed
-  # (the file mtime changes) the URL's ?v= parameter changes too,
-  # which busts the cache.
   def image
     img = Image.find_by(id: params[:image_id], album_id: params[:album_id])
     return head :not_found unless img
@@ -38,20 +29,11 @@ class SlideshowController < ApplicationController
     end
   end
 
-  # GET /slideshow/timeline[?album_id=K]
-  #
-  # Returns just the per-position taken_at as an ISO-string array.
-  # The slideshow uses this on boot to render every marker on the
-  # timeline up-front, without waiting for the full playlist to page in.
   def timeline
     dates = playlist_scope.pluck(:taken_at).map { |t| t&.iso8601 }
     render json: { total: dates.size, dates: dates }
   end
 
-  # GET /slideshow/playlist?from=N&count=M[&album_id=K]
-  #
-  # Returns metadata for a slice of the global playlist (or a single
-  # album if album_id is provided). Locations are joined in if cached.
   def playlist
     from  = [params[:from].to_i, 0].max
     count = params[:count].to_i.clamp(1, 100)
@@ -66,11 +48,12 @@ class SlideshowController < ApplicationController
     images = rows.map do |img|
       loc = img.location_key && locs[img.location_key]
       {
+        id:           img.id,
         url:          img.url,
         taken_at:     img.taken_at&.iso8601,
         location_key: img.location_key,
         location:     loc && { "country" => loc.country, "area" => loc.area },
-        position:     img.position,    # 0-based, within the image's album
+        position:     img.position,
         album:        { id: img.album_id, name: img.album.name, type: img.album.album_type }
       }
     end
@@ -78,15 +61,40 @@ class SlideshowController < ApplicationController
     render json: { from: from, count: images.size, total: total, images: images }
   end
 
+  # POST /screen/state — display reports its current image after each advance.
+  def update_state
+    image_id = params[:image_id].presence&.to_i
+    position = params[:position].presence&.to_i
+
+    # Reporting a current image also primes the screen — the display is
+    # actively showing something, so on subsequent reloads it should pick
+    # up where it left off rather than dropping back to the splash.
+    current_screen.update_columns(
+      current_image_id: image_id,
+      current_position: position,
+      last_seen_at:     Time.current,
+      primed:           true
+    )
+
+    ActionCable.server.broadcast("admin", {
+      action:    "screen_state_changed",
+      screen_id: current_screen.id,
+      image_id:  image_id,
+      image_url: image_id && Image.find_by(id: image_id)&.url
+    })
+
+    head :ok
+  end
+
   private
 
-  # The order across the whole library: by album name, then by intra-album
-  # position. Filtering by selected_album_id (a future setting) is honoured.
+  # Playlist scope honours the screen's group's selected_album_id
+  # (query override still wins for ad-hoc requests).
   def playlist_scope
     base = Image.joins(:album).order("albums.name ASC, images.position ASC")
     if (id = params[:album_id]).present?
       base = base.where(albums: { id: id })
-    elsif (id = SettingsStore.read["selected_album_id"]).present?
+    elsif (id = current_screen.screen_group.selected_album_id).present?
       base = base.where(albums: { id: id })
     end
     base

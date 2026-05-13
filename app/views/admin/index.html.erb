@@ -2,6 +2,11 @@
 
 <div class="stats">
   <div class="stat">
+    <div class="label">Screens</div>
+    <div class="value"><%= @screen_count %></div>
+    <div class="sub">connected browsers</div>
+  </div>
+  <div class="stat">
     <div class="label">Albums</div>
     <div class="value"><%= @album_count %></div>
     <div class="sub">
@@ -20,11 +25,71 @@
     <div class="label">Locations cached</div>
     <div class="value"><%= @location_count %></div>
   </div>
-  <div class="stat">
-    <div class="label">Settings rows</div>
-    <div class="value"><%= @setting_count %></div>
-  </div>
 </div>
+
+<% if @live_screens.any? %>
+  <h3>Live screens</h3>
+  <div class="screen-grid">
+    <% @live_screens.each do |s| %>
+      <% online = s.last_seen_at && (Time.current - s.last_seen_at) < 60 %>
+      <div class="screen-card">
+        <div class="screen-card-head">
+          <span class="screen-dot <%= 'online' if online %>"></span>
+          <span class="screen-code"><%= s.code %></span>
+          <span class="screen-nick"><%= s.nickname.presence || "no nickname" %></span>
+        </div>
+        <div class="screen-preview">
+          <% if s.current_image %>
+            <img src="<%= s.current_image.url %>"
+                 loading="lazy"
+                 data-screen-id="<%= s.id %>"
+                 data-current-image-id="<%= s.current_image_id %>"
+                 alt="">
+          <% else %>
+            <span data-screen-id="<%= s.id %>" data-current-image-id="">Idle</span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <script>
+    async function refreshLive() {
+      try {
+        const r = await fetch("/admin/screens.json");
+        const j = await r.json();
+        const byId = new Map();
+        for (const s of j.screens) byId.set(String(s.id), s);
+
+        document.querySelectorAll(".screen-preview [data-screen-id]").forEach(node => {
+          const s = byId.get(node.dataset.screenId);
+          if (!s) return;
+          const newId = s.current_image ? String(s.current_image.id) : "";
+          if (node.dataset.currentImageId === newId) return;
+
+          const container = node.parentElement;
+          container.innerHTML = "";
+          if (s.current_image) {
+            const img = document.createElement("img");
+            img.src = s.current_image.url;
+            img.loading = "lazy";
+            img.dataset.screenId = String(s.id);
+            img.dataset.currentImageId = newId;
+            img.alt = "";
+            container.appendChild(img);
+          } else {
+            const span = document.createElement("span");
+            span.dataset.screenId = String(s.id);
+            span.dataset.currentImageId = "";
+            span.textContent = "Idle";
+            container.appendChild(span);
+          }
+        });
+      } catch (e) {}
+    }
+    setInterval(refreshLive, 3000);
+  </script>
+<% end %>
 
 <h3>Indexer</h3>
 <div class="card" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">

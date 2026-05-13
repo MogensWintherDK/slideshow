@@ -42,16 +42,27 @@ both pages can update in lockstep.
 
 * **`SlideshowController`** — renders the big-screen shell (`#display`)
   and serves the paginated JSON playlist (`#playlist`), per-position
-  date list (`#timeline`), and image bytes with long-lived cache
-  headers (`#image`).
+  date list (`#timeline`), image bytes with long-lived cache headers
+  (`#image`), and the per-screen state report endpoint (`#update_state`).
 * **`RemoteController`** — renders the phone remote (`#index`) and
   receives control POSTs (`#command`). Each command broadcasts a
-  payload over ActionCable and (for stateful commands) writes to
-  `SettingsStore`.
-* **`AdminController`** — read-only dashboard at `/admin` plus a
-  manual reindex button. Shows database counts, album list with image
-  counts, paginated images, the location cache, current settings,
-  and indexer status.
+  payload over ActionCable; commands target either a specific screen
+  (via `target_screen_id`) or all screens. Per-screen settings are
+  written to the `screens` table.
+* **`AdminController`** — dashboard at `/admin` plus a manual reindex
+  button. Shows database counts, album list with image counts,
+  paginated images, the location cache, indexer status, a Screens page
+  (nicknames are editable; each row has a "Delete screen" action that
+  also tidies up an emptied group), and a Groups page that lists the
+  per-group playback configuration (each row has a "Delete" action
+  that cascades to remove all member screens after an explicit confirm).
+  The Settings page is kept around as a legacy view since the table
+  itself is no longer written to.
+* **`ScreenIdentity` concern** — finds or creates a `Screen` from a
+  signed `screen_token` cookie on the first hit to `/`. The cookie
+  persists for 5 years, so a given browser keeps the same 4-character
+  screen code (and all its per-screen settings) until the cookie is
+  cleared.
 * **`SlideshowChannel`** — single ActionCable channel; the server
   broadcasts onto the `"slideshow"` stream and both pages subscribe to
   it. The client speaks the protocol via a small vanilla-WebSocket
@@ -146,6 +157,29 @@ locations
 settings
   key string PK
   value text               -- JSON-encoded
+  created_at, updated_at
+
+screens
+  id integer PK
+  code string UNIQUE         -- 4-char Chromecast-style "AB3F"
+  cookie_token string UNIQUE
+  nickname string            -- editable in /admin/screens
+  last_seen_at datetime      -- bumped on every request from this screen
+  current_image_id integer   -- reported by client after each advance
+  current_position integer
+  primed boolean             -- false until first remote command (splash gate)
+  screen_group_id FK → screen_groups.id   -- every screen has exactly one group
+  created_at, updated_at
+
+screen_groups
+  id integer PK
+  name string                -- optional group label
+  selected_album_id integer  -- nil = all albums
+  play_mode string           -- "linear" or "random"
+  delay_seconds integer
+  playing boolean
+  birthday_mode boolean      -- show the per-group timeline overlay?
+  birthday string            -- ISO date anchoring the timeline
   created_at, updated_at
 ```
 
@@ -245,12 +279,52 @@ Bounded caches keep memory steady on a 4 GB Pi:
   the timeline markers (one `<div>` per photo, but they're 4–28 px
   dots, not images).
 
+## Screens and groups (Sonos-style)
+
+Every browser that opens `/` is registered as a `Screen` record on
+first visit. A signed `screen_token` cookie maps that browser to its
+record forever (5-year TTL). The screen is shown its 4-character code
+as a big Chromecast-style splash at boot.
+
+A new screen starts with `primed = false` and stays on the splash
+until a remote sends it a command — exactly like a Chromecast waiting
+to be cast to. Once a remote first talks to a screen (`broadcast_playback`
+or `/screen/state`) the column is flipped to `true` and persisted, so
+subsequent reloads auto-resume rather than dropping back to the splash.
+Existing screens were backfilled to `primed = true` during the
+migration so they keep their previous auto-start behaviour.
+
+After every slide advance, the display POSTs the new
+`(image_id, position)` to `/screen/state`. The admin page polls
+`/admin/screens.json` every 3 seconds to render a live thumbnail grid
+of what each screen is currently showing.
+
+Every screen belongs to exactly one `ScreenGroup`. A "standalone"
+screen is just the only member of its group. **Playback state lives on
+the group**, not on the screen — `selected_album_id`, `play_mode`,
+`delay_seconds`, and `playing` are columns on `screen_groups`. So:
+
+* Putting two screens in one group makes them share an album, play
+  mode, delay, and play/pause state.
+* Splitting a screen out moves it into a fresh group (with the default
+  settings).
+* If a group has no members it's deleted automatically.
+
+Group management — adding / removing screens, renaming — lives on the
+phone remote. The remote's first view is a list of groups; tapping
+into a group opens the controls for *that* group, with a Members card
+where you can `+` other screens in or `×` members out.
+
 ## ActionCable protocol
 
 All messages flow through the single `"slideshow"` stream. The phone
 sends commands as HTTP POSTs to `/remote/command`; the controller
-broadcasts the corresponding message to all subscribers (including
-itself, but it ignores the echo).
+broadcasts the corresponding message to all subscribers. **Every
+broadcast includes a `target_screen_ids` array** (the screen ids the
+command should apply to). The server resolves the targeted group to its
+member screens before broadcasting. A display applies the message only
+if `target_screen_ids` is `null` (broadcast to all) or contains its own
+screen id.
 
 | Action | Payload | Effect |
 |---|---|---|
@@ -264,6 +338,8 @@ itself, but it ignores the echo).
 | `set_birthday` | `{birthday: "YYYY-MM-DD" \| null}` | Set timeline anchor |
 | `set_album` | `{album_id: int \| null}` | Change playlist scope; slideshow reloads |
 | `albums_changed` | `{albums: [{id, name, type}, ...]}` | Pushed by Indexer when albums are added or removed; the remote rebuilds its album selector in place |
+| `screens_changed` | `{screens: [...]}` | Pushed when a new screen registers or a nickname changes; the remote rebuilds its screen picker |
+| `wake` | `{target_screen_ids: [...]}` | Pushed after a screen is added to a group; tells the target displays to leave the splash and start playing |
 | `location_resolved` | `{key, location}` | Pushed by Geocoder when a coord resolves |
 
 ## File layout (just the parts that matter)

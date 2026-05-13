@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_05_08_130001) do
+ActiveRecord::Schema[7.0].define(version: 2026_05_12_300000) do
   create_table "albums", force: :cascade do |t|
     t.string "name", null: false
     t.string "album_type", default: "local", null: false
@@ -44,6 +44,34 @@ ActiveRecord::Schema[7.0].define(version: 2026_05_08_130001) do
     t.index ["key"], name: "index_locations_on_key", unique: true
   end
 
+  create_table "screen_groups", force: :cascade do |t|
+    t.string "name"
+    t.integer "selected_album_id"
+    t.string "play_mode", default: "linear", null: false
+    t.integer "delay_seconds", default: 5, null: false
+    t.boolean "playing", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "birthday_mode", default: false, null: false
+    t.string "birthday"
+  end
+
+  create_table "screens", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "cookie_token", null: false
+    t.string "nickname"
+    t.datetime "last_seen_at"
+    t.integer "current_image_id"
+    t.integer "current_position"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "screen_group_id"
+    t.boolean "primed", default: false, null: false
+    t.index ["code"], name: "index_screens_on_code", unique: true
+    t.index ["cookie_token"], name: "index_screens_on_cookie_token", unique: true
+    t.index ["screen_group_id"], name: "index_screens_on_screen_group_id"
+  end
+
   create_table "settings", id: false, force: :cascade do |t|
     t.string "key", null: false
     t.text "value"
@@ -53,4 +81,5 @@ ActiveRecord::Schema[7.0].define(version: 2026_05_08_130001) do
   end
 
   add_foreign_key "images", "albums", on_delete: :cascade
+  add_foreign_key "screens", "screen_groups"
 end
