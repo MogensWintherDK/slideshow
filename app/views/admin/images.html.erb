@@ -5,7 +5,7 @@
     <thead>
       <tr>
         <th></th>
-        <th>Album</th>
+        <th>Source</th>
         <th class="num">#</th>
         <th>Filename</th>
         <th>Taken at</th>
@@ -17,7 +17,7 @@
       <% @images.each do |img| %>
         <tr>
           <td><a href="<%= img.url %>" target="_blank"><img class="thumb" loading="lazy" src="<%= img.url %>" alt=""></a></td>
-          <td><a href="<%= admin_album_path(img.album_id) %>"><%= img.album.name %></a></td>
+          <td><a href="<%= admin_source_path(img.source_id) %>"><%= img.source.name %></a></td>
           <td class="num"><%= img.position %></td>
           <td class="mono"><%= img.filename %></td>
           <td class="mono"><%= img.taken_at&.strftime("%Y-%m-%d %H:%M") || "—" %></td>

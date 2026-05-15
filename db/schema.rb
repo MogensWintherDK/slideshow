@@ -10,18 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_05_12_300000) do
-  create_table "albums", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "album_type", default: "local", null: false
-    t.string "path", default: "", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["album_type", "path"], name: "index_albums_on_album_type_and_path", unique: true
-  end
-
+ActiveRecord::Schema[7.0].define(version: 2026_05_13_220000) do
   create_table "images", force: :cascade do |t|
-    t.integer "album_id", null: false
+    t.integer "source_id", null: false
     t.string "filename", null: false
     t.datetime "taken_at"
     t.float "latitude"
@@ -30,10 +21,12 @@ ActiveRecord::Schema[7.0].define(version: 2026_05_12_300000) do
     t.integer "position", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["album_id", "filename"], name: "index_images_on_album_id_and_filename", unique: true
-    t.index ["album_id", "position"], name: "index_images_on_album_id_and_position"
-    t.index ["album_id"], name: "index_images_on_album_id"
+    t.string "external_id"
     t.index ["location_key"], name: "index_images_on_location_key"
+    t.index ["source_id", "external_id"], name: "index_images_on_source_id_and_external_id", unique: true, where: "external_id IS NOT NULL"
+    t.index ["source_id", "filename"], name: "index_images_on_source_id_and_filename", unique: true
+    t.index ["source_id", "position"], name: "index_images_on_source_id_and_position"
+    t.index ["source_id"], name: "index_images_on_source_id"
   end
 
   create_table "locations", id: false, force: :cascade do |t|
@@ -46,7 +39,7 @@ ActiveRecord::Schema[7.0].define(version: 2026_05_12_300000) do
 
   create_table "screen_groups", force: :cascade do |t|
     t.string "name"
-    t.integer "selected_album_id"
+    t.integer "selected_source_id"
     t.string "play_mode", default: "linear", null: false
     t.integer "delay_seconds", default: 5, null: false
     t.boolean "playing", default: true, null: false
@@ -80,6 +73,20 @@ ActiveRecord::Schema[7.0].define(version: 2026_05_12_300000) do
     t.index ["key"], name: "index_settings_on_key", unique: true
   end
 
-  add_foreign_key "images", "albums", on_delete: :cascade
+  create_table "sources", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "source_type", default: "local", null: false
+    t.string "path", default: "", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.string "external_id"
+    t.boolean "scroll_enabled", default: false, null: false
+    t.float "zoom", default: 1.0, null: false
+    t.index ["external_id"], name: "index_sources_on_external_id", unique: true, where: "external_id IS NOT NULL"
+    t.index ["source_type", "path"], name: "index_sources_on_photos_path", unique: true, where: "source_type = 'photos'"
+  end
+
+  add_foreign_key "images", "sources", on_delete: :cascade
   add_foreign_key "screens", "screen_groups"
 end

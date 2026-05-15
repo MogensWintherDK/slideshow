@@ -1,0 +1,81 @@
+<div class="breadcrumb"><a href="<%= admin_sources_path %>">← All sources</a></div>
+
+<h2><%= @source.name %> <span class="tag <%= @source.source_type %>" style="vertical-align: middle; margin-left: 6px;"><%= @source.source_type %></span></h2>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Images</div>
+    <div class="value"><%= @total %></div>
+  </div>
+  <% case @source.source_type %>
+  <% when "photos" %>
+    <div class="stat">
+      <div class="label">Folder</div>
+      <div class="value" style="font-size: 16px;">
+        <code><%= @source.path.presence || "(root)" %></code>
+      </div>
+      <div class="sub">relative to <code><%= Image.slides_root %></code></div>
+    </div>
+  <% when "web" %>
+    <div class="stat">
+      <div class="label">URL</div>
+      <div class="value" style="font-size: 14px; word-break: break-all;">
+        <code><%= @source.url %></code>
+      </div>
+    </div>
+  <% when "immich" %>
+    <div class="stat">
+      <div class="label">Immich album</div>
+      <div class="value" style="font-size: 14px; word-break: break-all;">
+        <code><%= @source.external_id %></code>
+      </div>
+      <div class="sub">on <code><%= ImmichClient.base_url %></code></div>
+    </div>
+  <% end %>
+  <div class="stat">
+    <div class="label">Created</div>
+    <div class="value" style="font-size: 16px;">
+      <%= @source.created_at.strftime("%Y-%m-%d %H:%M") %>
+    </div>
+  </div>
+</div>
+
+<% if (@source.photos? || @source.immich?) && @images.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th class="num">#</th>
+        <th>Filename</th>
+        <th>Taken at</th>
+        <th>GPS</th>
+        <th>Location key</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @images.each do |img| %>
+        <tr>
+          <td><a href="<%= img.url %>" target="_blank"><img class="thumb" loading="lazy" src="<%= img.url %>" alt=""></a></td>
+          <td class="num"><%= img.position %></td>
+          <td class="mono"><%= img.filename %></td>
+          <td class="mono"><%= img.taken_at&.strftime("%Y-%m-%d %H:%M") || "—" %></td>
+          <td class="mono">
+            <% if img.latitude && img.longitude %>
+              <%= sprintf("%.4f, %.4f", img.latitude, img.longitude) %>
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td class="mono"><%= img.location_key || "—" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <%= render "pagination", page: @page, total_pages: @total_pages %>
+<% elsif @source.web? %>
+  <div class="card muted">
+    Web sources don't have indexed content — when a group selects this source, the screens load the URL above in a fullscreen iframe.
+  </div>
+<% else %>
+  <div class="card muted">No images indexed yet.</div>
+<% end %>

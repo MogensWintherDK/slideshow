@@ -1,7 +1,7 @@
 <h2>Screens <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;"><%= @screens.size %> known · <%= @groups.size %> groups</span></h2>
 
 <div class="card muted" style="margin-bottom: 16px; font-size: 13px;">
-  Each browser that opens <code>/</code> is registered as a screen and identified by a 4-character code shown at the top-left of the slideshow (and prominently when it first loads). Identity is held in a signed cookie. Screens are organised into <strong>groups</strong> (Sonos-style); every screen is in exactly one group. Album, play mode, delay and play/pause are properties of the group, so screens in the same group play in sync. Group management — adding / removing screens, renaming — happens from the phone remote.
+  Each browser that opens <code>/</code> is registered as a screen and identified by a 4-character code. Identity is held in a signed cookie. Screens are organised into <strong>groups</strong> (Sonos-style); every screen is in exactly one group. Source, play mode, delay and play/pause are properties of the group, so screens in the same group play in sync.
 </div>
 
 <% if @screens.any? %>
@@ -18,11 +18,8 @@
 
         <div class="screen-preview">
           <% if s.current_image %>
-            <img src="<%= s.current_image.url %>"
-                 loading="lazy"
-                 data-screen-id="<%= s.id %>"
-                 data-current-image-id="<%= s.current_image_id %>"
-                 alt="">
+            <img src="<%= s.current_image.url %>" loading="lazy"
+                 data-screen-id="<%= s.id %>" data-current-image-id="<%= s.current_image_id %>" alt="">
           <% else %>
             <span data-screen-id="<%= s.id %>" data-current-image-id="">Idle</span>
           <% end %>
@@ -57,7 +54,7 @@
           </span>
           <span>
             <% if g %>
-              <%= g.selected_album&.name || "all albums" %> · <%= g.play_mode %> · <%= g.delay_seconds %>s
+              <%= g.selected_source&.name || "all photos sources" %> · <%= g.play_mode %> · <%= g.delay_seconds %>s
             <% end %>
           </span>
         </div>

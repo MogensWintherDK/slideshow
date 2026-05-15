@@ -3,8 +3,7 @@ class RemoteController < ApplicationController
   skip_before_action :verify_authenticity_token, only: :command
 
   def index
-    @settings = SettingsStore.read
-    @albums   = Album.order(:name).pluck(:id, :name, :album_type).map { |id, name, type| { id: id, name: name, type: type } }
+    @sources  = sources_payload
     @screens  = Screen.includes(:current_image).order(:code).map(&:to_remote_json)
     @groups   = ScreenGroup.includes(:screens).order(:id).map(&:to_remote_json)
   end
@@ -12,8 +11,7 @@ class RemoteController < ApplicationController
   # JSON snapshot used by the remote when (re)connecting.
   def settings
     render json: {
-      settings: SettingsStore.read,
-      albums:   Album.order(:name).pluck(:id, :name, :album_type).map { |id, name, type| { id: id, name: name, type: type } },
+      sources:  sources_payload,
       screens:  Screen.includes(:current_image).order(:code).map(&:to_remote_json),
       groups:   ScreenGroup.includes(:screens).order(:id).map(&:to_remote_json)
     }
@@ -30,13 +28,16 @@ class RemoteController < ApplicationController
     end
 
     case name
-    # ── Pure playback (no DB state change) ────────────────────────────────
     when "reset"
       broadcast_playback(target_group, action: "reset")
     when "skip"
       broadcast_playback(target_group, action: "skip", delta: params[:delta].to_i)
+    when "scroll"
+      # Web source only: -1 = up, +1 = down (multiple presses for further)
+      broadcast_playback(target_group, action: "scroll", delta: params[:delta].to_i)
+    when "reload_page"
+      broadcast_playback(target_group, action: "reload_page")
 
-    # ── Stateful playback (write to group, then broadcast) ───────────────
     when "play"
       apply_to_groups(target_group) { |g| g.update_columns(playing: true) }
       broadcast_playback(target_group, action: "play")
@@ -52,14 +53,13 @@ class RemoteController < ApplicationController
       mode = "linear" unless %w[linear random].include?(mode)
       apply_to_groups(target_group) { |g| g.update_columns(play_mode: mode) }
       broadcast_playback(target_group, action: "set_play_mode", mode: mode)
-    when "set_album"
-      raw       = params[:album_id].to_s
-      album_id  = raw.empty? ? nil : raw.to_i
-      return head :bad_request if album_id && !Album.exists?(id: album_id)
-      apply_to_groups(target_group) { |g| g.update_columns(selected_album_id: album_id) }
-      broadcast_playback(target_group, action: "set_album", album_id: album_id)
+    when "set_source"
+      raw       = params[:source_id].to_s
+      source_id = raw.empty? ? nil : raw.to_i
+      return head :bad_request if source_id && !Source.exists?(id: source_id)
+      apply_to_groups(target_group) { |g| g.update_columns(selected_source_id: source_id) }
+      broadcast_playback(target_group, action: "set_source", source_id: source_id)
 
-    # ── Per-group birthday timeline ──────────────────────────────────────
     when "set_birthday_mode"
       enabled = ActiveModel::Type::Boolean.new.cast(params[:enabled])
       apply_to_groups(target_group) { |g| g.update_columns(birthday_mode: enabled) }
@@ -70,13 +70,10 @@ class RemoteController < ApplicationController
       apply_to_groups(target_group) { |g| g.update_columns(birthday: birthday) }
       broadcast_playback(target_group, action: "set_birthday", birthday: birthday)
 
-    # ── Group management ─────────────────────────────────────────────────
     when "add_screens_to_group"
       return head :bad_request unless target_group
       ids = Array(params[:screen_ids]).map(&:to_i)
       Screen.where(id: ids).find_each { |s| s.move_to_group!(target_group) }
-      # Adding a screen to a group is an explicit user action targeting it,
-      # so we treat it like a wake-up too.
       Screen.where(id: ids).update_all(primed: true)
       ActionCable.server.broadcast("slideshow", {
         action: "wake", target_screen_ids: ids
@@ -106,6 +103,12 @@ class RemoteController < ApplicationController
 
   private
 
+  def sources_payload
+    Source.order(:name).map do |s|
+      { id: s.id, name: s.name, type: s.source_type, url: s.url, path: s.path }
+    end
+  end
+
   def apply_to_groups(target_group)
     if target_group
       yield target_group
@@ -114,10 +117,6 @@ class RemoteController < ApplicationController
     end
   end
 
-  # Broadcast a playback action with a resolved target_screen_ids list
-  # (nil = every screen everywhere). Also marks the targeted screens as
-  # "primed" — once a remote has spoken to a screen it's no longer in
-  # the wait-for-cast splash and will auto-resume on subsequent reloads.
   def broadcast_playback(target_group, payload)
     screen_ids = target_group ? target_group.screens.pluck(:id) : nil
     Screen.where(id: screen_ids).where(primed: false).update_all(primed: true) if screen_ids

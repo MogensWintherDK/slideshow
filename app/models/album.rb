@@ -1,9 +1,4 @@
-class Album < ApplicationRecord
-  has_many :images, -> { order(:position) }, dependent: :destroy
-
-  validates :name,       presence: true
-  validates :album_type, presence: true, inclusion: { in: %w[local immich] }
-  validates :path,       uniqueness: { scope: :album_type }
-
-  scope :local, -> { where(album_type: "local") }
-end
+# Kept only for backward compatibility with any rails console / scripts that
+# still type "Album". The model has been renamed to Source, and a source has
+# a type ("photos" or "web") instead of an album_type.
+Album = Source

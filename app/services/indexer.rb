@@ -1,32 +1,28 @@
 require "exifr/jpeg"
 
-# Disk → database sync for local albums.
+# Disk → database sync for photos sources.
 #
-# Scans public/slides/:
-#   - Each subdirectory becomes a local Album (name = directory name).
-#   - JPEGs directly in public/slides/ are kept in a "Default" album.
-#   - New files get an EXIF-read on insert. We never re-read EXIF for
-#     existing rows unless the file is deleted and re-indexed.
-#   - Files removed from disk → corresponding image rows are deleted.
-#   - Subdirectories that vanish → albums (and their images via FK cascade)
-#     are removed.
-#
-# Runs once on first slideshow request, then re-scans every 5 minutes
-# in a background thread. The worker properly checks out an
-# ActiveRecord connection from the pool.
+# Scans slides/ at the project root:
+#   - Each subdirectory becomes a Source of type "photos" (name = directory).
+#   - JPEGs directly in slides/ are kept in a "Default" photos source.
+#   - New files get an EXIF-read on insert. We also re-read EXIF if a
+#     file's mtime is newer than the row's updated_at.
+#   - Files removed from disk are deleted from `images`.
+#   - Subdirectories that vanish → photos sources (and their images via
+#     FK cascade) are removed. Web sources are never touched here.
 module Indexer
   module_function
 
-  SLIDES_ROOT      = Image.slides_root
-  DEFAULT_ALBUM    = { name: "Default", path: "" }.freeze
-  RESCAN_INTERVAL  = 5 * 60     # seconds
-  IMAGE_GLOB       = /\.jpe?g\z/i
+  SLIDES_ROOT     = Image.slides_root
+  DEFAULT_SOURCE  = { name: "Default", path: "" }.freeze
+  RESCAN_INTERVAL = 5 * 60     # seconds
+  IMAGE_GLOB      = /\.jpe?g\z/i
 
-  @started      = false
-  @mu           = Mutex.new
-  @worker       = nil
-  @last_run_at  = nil
-  @last_error   = nil
+  @started     = false
+  @mu          = Mutex.new
+  @worker      = nil
+  @last_run_at = nil
+  @last_error  = nil
 
   class << self
     attr_reader :last_run_at, :last_error
@@ -42,15 +38,14 @@ module Indexer
     @worker = Thread.new { background_loop }
   end
 
-  # One-shot synchronous reindex; used at boot, from rails runner, and
-  # from the admin "Reindex now" button.
   def run
     ActiveRecord::Base.connection_pool.with_connection do
-      @album_changes = 0
-      sync_default_album
-      sync_subfolder_albums
-      @album_changes += remove_orphan_albums
-      broadcast_albums_changed if @album_changes.positive?
+      @source_changes = 0
+      sync_default_source
+      sync_subfolder_sources
+      @source_changes += remove_orphan_sources
+      sync_all_immich_sources
+      broadcast_sources_changed if @source_changes.positive?
     end
     @last_run_at = Time.current
     @last_error  = nil
@@ -59,12 +54,85 @@ module Indexer
     raise
   end
 
+  # Sync every Immich source. Errors on one source don't stop the others.
+  def sync_all_immich_sources
+    return unless ImmichClient.configured?
+    Source.immich.find_each do |source|
+      begin
+        sync_immich_source(source)
+      rescue => e
+        Rails.logger.warn("Immich sync failed for source ##{source.id}: #{e.class}: #{e.message}")
+      end
+    end
+  end
+
+  # Pull the album's current asset list from Immich and reconcile it
+  # against the images table. Called from the periodic indexer loop and
+  # also synchronously from the admin form when a source is first added.
+  def sync_immich_source(source)
+    return unless ImmichClient.configured?
+    return unless source.immich? && source.external_id.present?
+
+    album       = ImmichClient.album(source.external_id)
+    assets      = album["assets"] || []
+    asset_uuids = []
+
+    # Update the source's display name from Immich if we don't already
+    # have one set (or it matches Immich's previous name).
+    if album["albumName"].present? && source.name.blank?
+      source.update_columns(name: album["albumName"])
+    end
+
+    assets.each do |asset|
+      uuid = asset["id"]
+      next unless uuid.present?
+      asset_uuids << uuid
+
+      image = Image.find_or_initialize_by(source_id: source.id, external_id: uuid)
+      exif  = asset["exifInfo"] || {}
+
+      # Use the UUID as filename so the (source_id, filename) uniqueness
+      # holds even when two assets have the same original filename.
+      image.filename     = uuid
+      image.taken_at     = parse_immich_time(
+                            exif["dateTimeOriginal"] ||
+                            asset["fileCreatedAt"] ||
+                            asset["createdAt"])
+      image.latitude     = exif["latitude"]
+      image.longitude    = exif["longitude"]
+      image.location_key = (image.latitude && image.longitude) ? Geocoder.key_for(image.latitude, image.longitude) : nil
+
+      if image.latitude && image.longitude
+        Geocoder.resolve_async(image.latitude, image.longitude)
+      end
+
+      image.save! if image.changed?
+    end
+
+    # Remove rows whose asset is no longer in the Immich album.
+    Image.where(source_id: source.id).where.not(external_id: asset_uuids).delete_all
+
+    # Renumber positions chronologically (same rule as photos sources).
+    ordered = Image.where(source_id: source.id)
+                   .order(Arel.sql("taken_at IS NULL, taken_at ASC, filename ASC"))
+                   .pluck(:id)
+    ordered.each.with_index do |id, idx|
+      Image.where(id: id).where.not(position: idx).update_all(position: idx)
+    end
+  end
+
+  def parse_immich_time(s)
+    return nil if s.blank?
+    Time.parse(s.to_s)
+  rescue ArgumentError
+    nil
+  end
+
   # ── Internals ──────────────────────────────────────────────────────────
 
   def background_loop
     Thread.current.name = "indexer"
     Thread.current.abort_on_exception = false
-    # Small delay so the initial DB/HTTP boot can settle.
     sleep 1
     loop do
       begin
@@ -76,50 +144,46 @@ module Indexer
     end
   end
 
-  # JPEGs directly under public/slides/ live in a "Default" album.
-  def sync_default_album
+  def sync_default_source
     return unless File.directory?(SLIDES_ROOT)
     files = list_images(SLIDES_ROOT)
     if files.empty?
-      # Drop the default album if it exists and is empty
-      Album.local.where(path: "").find_each { |a| a.destroy if a.images.empty? }
+      Source.photos.where(path: "").find_each { |s| s.destroy if s.images.empty? }
       return
     end
-    album = upsert_album(DEFAULT_ALBUM[:name], DEFAULT_ALBUM[:path])
-    sync_album_files(album, SLIDES_ROOT, files)
+    source = upsert_source(DEFAULT_SOURCE[:name], DEFAULT_SOURCE[:path])
+    sync_source_files(source, SLIDES_ROOT, files)
   end
 
-  def sync_subfolder_albums
+  def sync_subfolder_sources
     return unless File.directory?(SLIDES_ROOT)
     Dir.children(SLIDES_ROOT).sort.each do |entry|
       dir = SLIDES_ROOT.join(entry)
       next unless File.directory?(dir)
-      album = upsert_album(entry, entry)
-      sync_album_files(album, dir, list_images(dir))
+      source = upsert_source(entry, entry)
+      sync_source_files(source, dir, list_images(dir))
     end
   end
 
-  def upsert_album(name, path)
-    album   = Album.find_or_initialize_by(album_type: "local", path: path)
-    was_new = album.new_record?
-    album.name = name if album.name != name
-    album.save! if album.changed?
-    @album_changes ||= 0
-    @album_changes += 1 if was_new
-    album
+  def upsert_source(name, path)
+    source = Source.find_or_initialize_by(source_type: "photos", path: path)
+    was_new = source.new_record?
+    source.name = name if source.name != name
+    source.save! if source.changed?
+    @source_changes ||= 0
+    @source_changes += 1 if was_new
+    source
   end
 
   def list_images(dir)
     Dir.children(dir).select { |f| f =~ IMAGE_GLOB }.sort
   end
 
-  def sync_album_files(album, dir, files)
-    # ── Pass 1: make sure every file has an Image row with EXIF data ──
+  def sync_source_files(source, dir, files)
     files.each do |filename|
-      image      = Image.find_or_initialize_by(album_id: album.id, filename: filename)
+      image      = Image.find_or_initialize_by(source_id: source.id, filename: filename)
       file_mtime = File.mtime(dir.join(filename)) rescue nil
 
-      # New row OR file has changed since we last read it → re-read EXIF.
       needs_reread = image.new_record? ||
                      (file_mtime && image.updated_at && file_mtime > image.updated_at)
 
@@ -141,15 +205,10 @@ module Indexer
       end
     end
 
-    # ── Pass 2: drop rows whose files are gone, so position renumbering
-    # below only sees what's actually on disk.
-    Image.where(album_id: album.id).where.not(filename: files).delete_all
+    Image.where(source_id: source.id).where.not(filename: files).delete_all
 
-    # ── Pass 3: renumber `position` in chronological order. Sort by
-    # taken_at (NULLs last) with filename as a stable tiebreaker.
-    # This is what makes the slideshow play oldest → newest and what
-    # makes "Reset" go to the chronologically first image of the album.
-    ordered = Image.where(album_id: album.id)
+    # Renumber positions chronologically by taken_at.
+    ordered = Image.where(source_id: source.id)
                    .order(Arel.sql("taken_at IS NULL, taken_at ASC, filename ASC"))
                    .pluck(:id)
     ordered.each.with_index do |id, idx|
@@ -157,27 +216,25 @@ module Indexer
     end
   end
 
-  def remove_orphan_albums
+  def remove_orphan_sources
     removed = 0
-    Album.local.find_each do |album|
-      # Default album lives at the slides root; only delete if root is gone
-      dir = album.path.present? ? SLIDES_ROOT.join(album.path) : SLIDES_ROOT
+    # Only consider photos sources — web sources are user-managed.
+    Source.photos.find_each do |source|
+      dir = source.path.present? ? SLIDES_ROOT.join(source.path) : SLIDES_ROOT
       next if File.directory?(dir)
-      album.destroy
+      source.destroy
       removed += 1
     end
     removed
   end
 
-  # Push a fresh album list to subscribers so the remote can update its
-  # selector in place — no page reload needed.
-  def broadcast_albums_changed
-    albums = Album.order(:name).pluck(:id, :name, :album_type).map do |id, name, type|
-      { id: id, name: name, type: type }
+  def broadcast_sources_changed
+    sources = Source.order(:name).pluck(:id, :name, :source_type, :url).map do |id, name, type, url|
+      { id: id, name: name, type: type, url: url }
     end
     ActionCable.server.broadcast("slideshow", {
-      action: "albums_changed",
-      albums: albums
+      action:  "sources_changed",
+      sources: sources
     })
   end
 

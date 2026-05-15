@@ -20,7 +20,7 @@ covers how to *use* it; this one covers how it *works*.
 │                │ ───────────────────────────────────▶│  cache         │
 │                │  GET /slideshow/timeline            │                │
 │                │ ───────────────────────────────────▶│                │
-│                │  GET /slideshow/albums/:a/images/:i │                │
+│                │  GET /slideshow/sources/:a/images/:i │                │
 │                │ ───────────────────────────────────▶│  ┌──────────┐  │
 └────────────────┘   (ETag + 1y Cache-Control)         │  │ slides/  │  │
                                                        │  └──────────┘  │
@@ -50,7 +50,7 @@ both pages can update in lockstep.
   (via `target_screen_id`) or all screens. Per-screen settings are
   written to the `screens` table.
 * **`AdminController`** — dashboard at `/admin` plus a manual reindex
-  button. Shows database counts, album list with image counts,
+  button. Shows database counts, source list with image counts,
   paginated images, the location cache, indexer status, a Screens page
   (nicknames are editable; each row has a "Delete screen" action that
   also tidies up an emptied group), and a Groups page that lists the
@@ -72,19 +72,19 @@ both pages can update in lockstep.
 
 ### Indexer (`app/services/indexer.rb`)
 
-Walks `slides/` (at the project root) and syncs the `albums` and
+Walks `slides/` (at the project root) and syncs the `sources` and
 `images` tables to match what's on disk:
 
-* Each **subdirectory** of `slides/` becomes a row in `albums` with
-  `album_type = "local"` and the directory name as the album name.
-* JPEGs **directly** in `slides/` are kept in a single album named
+* Each **subdirectory** of `slides/` becomes a row in `sources` with
+  `source_type = "photos"` and the directory name as the source name.
+* JPEGs **directly** in `slides/` are kept in a single source named
   `Default` (`path = ""`).
 * New files are inserted; EXIF (`DateTimeOriginal` + GPS) is read once
   on insert. We also re-read EXIF if the file's mtime is newer than
   the image record's `updated_at` — that bumps the `?v=` cache buster
   so the browser refetches the changed image.
 * Files that disappear from disk are deleted from `images`.
-  Subdirectories that disappear are deleted from `albums` (cascading
+  Subdirectories that disappear are deleted from `sources` (cascading
   to their images).
 * Runs once at boot (started lazily on first request) and re-runs
   every 5 minutes in a single background thread that properly checks
@@ -116,7 +116,7 @@ correctly. Current keys:
 | `birthday_mode` | bool | Show the timeline on the slideshow |
 | `birthday` | ISO date / null | Anchor date for the timeline |
 | `play_mode` | `"linear"` / `"random"` | Auto-advance policy |
-| `selected_album_id` | int / null | Which album to play (null = all merged) |
+| `selected_source_id` | int / null | Which source to play (null = all merged) |
 
 Defaults live in `SettingsStore::DEFAULTS`.
 
@@ -127,25 +127,28 @@ empty.
 ## Database schema
 
 ```
-albums
+sources
   id integer PK
   name string
-  album_type string  -- "local" (extensible: "immich", …)
+  source_type string  -- "photos" | "web" | "immich"
+  url string          -- iframe URL for web sources
+  external_id string  -- Immich album UUID for immich sources
   path string        -- "" for Default, or subfolder name for others
   created_at, updated_at
-  UNIQUE INDEX (album_type, path)
+  UNIQUE INDEX (source_type, path)
 
 images
   id integer PK
-  album_id FK → albums.id  ON DELETE CASCADE
-  filename string
+  source_id FK → sources.id  ON DELETE CASCADE
+  filename string             -- Immich asset UUID for immich-typed rows
+  external_id string          -- Immich asset UUID (also)
   taken_at datetime        -- EXIF DateTimeOriginal, mtime fallback
   latitude float, longitude float
   location_key string      -- "lat,lon" rounded to 3 decimals
-  position integer         -- 0-based intra-album sort order
+  position integer         -- 0-based intra-source sort order
   created_at, updated_at
-  UNIQUE INDEX (album_id, filename)
-  INDEX (album_id, position)
+  UNIQUE INDEX (source_id, filename)
+  INDEX (source_id, position)
   INDEX (location_key)
 
 locations
@@ -174,7 +177,7 @@ screens
 screen_groups
   id integer PK
   name string                -- optional group label
-  selected_album_id integer  -- nil = all albums
+  selected_source_id integer  -- nil = all sources
   play_mode string           -- "linear" or "random"
   delay_seconds integer
   playing boolean
@@ -186,7 +189,7 @@ screen_groups
 ## Playlist endpoint
 
 ```
-GET /slideshow/playlist?from=N&count=M[&album_id=K]
+GET /slideshow/playlist?from=N&count=M[&source_id=K]
 ```
 
 ```json
@@ -196,11 +199,11 @@ GET /slideshow/playlist?from=N&count=M[&album_id=K]
   "total": 541,
   "images": [
     {
-      "url":          "/slideshow/albums/3/images/47?v=1746710400",
+      "url":          "/slideshow/sources/3/images/47?v=1746710400",
       "taken_at":     "2018-07-04T14:22:11+02:00",
       "location_key": "55.676,12.568",
       "location":     { "country": "Denmark", "area": "Copenhagen" },
-      "album":        { "id": 3, "name": "holiday", "type": "local" }
+      "source":        { "id": 3, "name": "holiday", "type": "local" }
     }
   ]
 }
@@ -213,11 +216,11 @@ in place.
 ## Image endpoint
 
 ```
-GET /slideshow/albums/:album_id/images/:image_id?v=<updated_at_unix>
+GET /slideshow/sources/:source_id/images/:image_id?v=<updated_at_unix>
 ```
 
 Streams the JPEG bytes. Both ids in the path are validated — a stale
-URL pointing at the wrong album returns 404.
+URL pointing at the wrong source returns 404.
 
 Cache headers:
 * `ETag: "<image_id>-<file_mtime_unix>"` (strong)
@@ -234,7 +237,7 @@ request to always go through Rails so these headers are applied.
 ## Timeline endpoint
 
 ```
-GET /slideshow/timeline[?album_id=K]
+GET /slideshow/timeline[?source_id=K]
 ```
 
 ```json
@@ -246,9 +249,9 @@ or `null` if EXIF reading failed for that file. The display page
 fetches this once on boot so it can render every timeline marker
 up-front, without waiting for `playlist` pagination to complete.
 
-Ordering across the global playlist: by `album.name ASC`, then by
-`image.position ASC`. If `selected_album_id` is set (or `album_id` is
-passed as a query parameter), only that album's images are returned.
+Ordering across the global playlist: by `source.name ASC`, then by
+`image.position ASC`. If `selected_source_id` is set (or `source_id` is
+passed as a query parameter), only that source's images are returned.
 
 ## Big-screen client
 
@@ -301,10 +304,10 @@ of what each screen is currently showing.
 
 Every screen belongs to exactly one `ScreenGroup`. A "standalone"
 screen is just the only member of its group. **Playback state lives on
-the group**, not on the screen — `selected_album_id`, `play_mode`,
+the group**, not on the screen — `selected_source_id`, `play_mode`,
 `delay_seconds`, and `playing` are columns on `screen_groups`. So:
 
-* Putting two screens in one group makes them share an album, play
+* Putting two screens in one group makes them share an source, play
   mode, delay, and play/pause state.
 * Splitting a screen out moves it into a fresh group (with the default
   settings).
@@ -330,16 +333,18 @@ screen id.
 |---|---|---|
 | `play` | — | Resume auto-advance |
 | `pause` | — | Stop auto-advance |
-| `reset` | — | Jump to the first image of the album containing the current slide |
+| `reset` | — | Jump to the first image of the source containing the current slide |
 | `skip` | `{delta: int}` | Move playlist index by ±N |
 | `set_delay` | `{delay: int seconds}` | Change auto-advance interval |
 | `set_play_mode` | `{mode: "linear"\|"random"}` | Change advance policy |
 | `set_birthday_mode` | `{enabled: bool}` | Show/hide timeline |
 | `set_birthday` | `{birthday: "YYYY-MM-DD" \| null}` | Set timeline anchor |
-| `set_album` | `{album_id: int \| null}` | Change playlist scope; slideshow reloads |
-| `albums_changed` | `{albums: [{id, name, type}, ...]}` | Pushed by Indexer when albums are added or removed; the remote rebuilds its album selector in place |
+| `set_source` | `{source_id: int \| null}` | Change playlist scope; slideshow reloads |
+| `sources_changed` | `{sources: [{id, name, type}, ...]}` | Pushed by Indexer when sources are added or removed; the remote rebuilds its source selector in place |
 | `screens_changed` | `{screens: [...]}` | Pushed when a new screen registers or a nickname changes; the remote rebuilds its screen picker |
 | `wake` | `{target_screen_ids: [...]}` | Pushed after a screen is added to a group; tells the target displays to leave the splash and start playing |
+| `scroll` | `{delta: ±1, target_screen_ids: [...]}` | Web sources only — translate the iframe by 80% of viewport up or down |
+| `reload_page` | `{target_screen_ids: [...]}` | Web sources only — reload the iframe and reset scroll |
 | `location_resolved` | `{key, location}` | Pushed by Geocoder when a coord resolves |
 
 ## File layout (just the parts that matter)
@@ -353,7 +358,7 @@ app/
     remote_controller.rb              # remote UI + command POSTs
     admin_controller.rb               # /admin read-only inspection
   models/
-    album.rb image.rb
+    source.rb image.rb
     setting.rb location.rb
     settings_store.rb                 # key/value façade
   services/
@@ -362,36 +367,36 @@ app/
   views/
     slideshow/display.html.erb
     remote/index.html.erb
-    admin/*.html.erb                  # dashboard, albums, images, locations, settings
+    admin/*.html.erb                  # dashboard, sources, images, locations, settings
     layouts/application.html.erb      # just <%= yield %>
     layouts/admin.html.erb            # shared admin shell (dark theme)
 public/
   javascript/cable.js                 # tiny vanilla WS Action Cable client
-slides/                               # photos (subfolders = albums); NOT under public/
+slides/                               # photos (subfolders = sources); NOT under public/
 db/
   migrate/                            # schema
-  development.sqlite3                 # albums, images, locations, settings
+  development.sqlite3                 # sources, images, locations, settings
 config/
   routes.rb
   cable.yml                           # async adapter, no Redis needed
   initializers/start_indexer.rb       # kicks off the background indexer
 ```
 
-## Adding a new album type (future Immich support)
+## Adding a new source type (future Immich support)
 
-The `albums.album_type` column was added with this in mind. To add a
+The `sources.source_type` column was added with this in mind. To add a
 new type:
 
 1. Decide on a type string (e.g. `"immich"`) and add it to
-   `Album#validates :album_type, inclusion: { in: %w[local immich] }`.
+   `Source::TYPES` (currently `%w[photos web]`).
 2. Add the source-specific URL logic to `Image#url`'s `case`
    statement.
-3. Write a sync method that creates albums of that type. The
+3. Write a sync method that creates sources of that type. The
    indexer's local sync is a good template — split it into a
    per-type module if it grows.
 
-`album.path` is currently only meaningful for local albums; remote
-types can ignore it or repurpose it (e.g. as an Immich album UUID).
+`source.path` is only meaningful for photos sources; remote
+types can ignore it or repurpose it (e.g. as an Immich source UUID).
 
 ## Things deliberately kept simple
 

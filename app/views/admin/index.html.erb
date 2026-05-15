@@ -7,11 +7,11 @@
     <div class="sub">connected browsers</div>
   </div>
   <div class="stat">
-    <div class="label">Albums</div>
-    <div class="value"><%= @album_count %></div>
+    <div class="label">Sources</div>
+    <div class="value"><%= @source_count %></div>
     <div class="sub">
-      <% if @albums_by_type.any? %>
-        <%= @albums_by_type.map { |k, v| "#{v} #{k}" }.join(", ") %>
+      <% if @sources_by_type.any? %>
+        <%= @sources_by_type.map { |k, v| "#{v} #{k}" }.join(", ") %>
       <% else %>
         none
       <% end %>
@@ -26,70 +26,6 @@
     <div class="value"><%= @location_count %></div>
   </div>
 </div>
-
-<% if @live_screens.any? %>
-  <h3>Live screens</h3>
-  <div class="screen-grid">
-    <% @live_screens.each do |s| %>
-      <% online = s.last_seen_at && (Time.current - s.last_seen_at) < 60 %>
-      <div class="screen-card">
-        <div class="screen-card-head">
-          <span class="screen-dot <%= 'online' if online %>"></span>
-          <span class="screen-code"><%= s.code %></span>
-          <span class="screen-nick"><%= s.nickname.presence || "no nickname" %></span>
-        </div>
-        <div class="screen-preview">
-          <% if s.current_image %>
-            <img src="<%= s.current_image.url %>"
-                 loading="lazy"
-                 data-screen-id="<%= s.id %>"
-                 data-current-image-id="<%= s.current_image_id %>"
-                 alt="">
-          <% else %>
-            <span data-screen-id="<%= s.id %>" data-current-image-id="">Idle</span>
-          <% end %>
-        </div>
-      </div>
-    <% end %>
-  </div>
-
-  <script>
-    async function refreshLive() {
-      try {
-        const r = await fetch("/admin/screens.json");
-        const j = await r.json();
-        const byId = new Map();
-        for (const s of j.screens) byId.set(String(s.id), s);
-
-        document.querySelectorAll(".screen-preview [data-screen-id]").forEach(node => {
-          const s = byId.get(node.dataset.screenId);
-          if (!s) return;
-          const newId = s.current_image ? String(s.current_image.id) : "";
-          if (node.dataset.currentImageId === newId) return;
-
-          const container = node.parentElement;
-          container.innerHTML = "";
-          if (s.current_image) {
-            const img = document.createElement("img");
-            img.src = s.current_image.url;
-            img.loading = "lazy";
-            img.dataset.screenId = String(s.id);
-            img.dataset.currentImageId = newId;
-            img.alt = "";
-            container.appendChild(img);
-          } else {
-            const span = document.createElement("span");
-            span.dataset.screenId = String(s.id);
-            span.dataset.currentImageId = "";
-            span.textContent = "Idle";
-            container.appendChild(span);
-          }
-        });
-      } catch (e) {}
-    }
-    setInterval(refreshLive, 3000);
-  </script>
-<% end %>
 
 <h3>Indexer</h3>
 <div class="card" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
@@ -113,17 +49,26 @@
   <%= button_to "Reindex now", admin_reindex_path, method: :post, class: "btn" %>
 </div>
 
-<% if @top_albums.any? %>
-  <h3>Top albums</h3>
+<% if @top_sources.any? %>
+  <h3>Top sources</h3>
   <table>
-    <thead><tr><th>Name</th><th>Type</th><th>Path</th><th class="num">Images</th></tr></thead>
+    <thead><tr><th>Name</th><th>Type</th><th>Location</th><th class="num">Images</th></tr></thead>
     <tbody>
-      <% @top_albums.each do |a| %>
+      <% @top_sources.each do |s| %>
         <tr>
-          <td><a href="<%= admin_album_path(a) %>"><%= a.name %></a></td>
-          <td><span class="tag <%= a.album_type %>"><%= a.album_type %></span></td>
-          <td class="mono"><%= a.path.presence || "—" %></td>
-          <td class="num"><%= a.image_count %></td>
+          <td>
+            <% if s.photos? %>
+              <a href="<%= admin_source_path(s) %>"><%= s.name %></a>
+            <% else %>
+              <strong><%= s.name %></strong>
+            <% end %>
+          </td>
+          <td><span class="tag <%= s.source_type %>"><%= s.source_type %></span></td>
+          <td class="mono">
+            <% if s.photos? %><%= s.path.presence || "(root)" %>
+            <% else %><%= s.url %><% end %>
+          </td>
+          <td class="num"><%= s.image_count %></td>
         </tr>
       <% end %>
     </tbody>
@@ -135,14 +80,14 @@
   <table>
     <thead>
       <tr>
-        <th></th><th>Album</th><th>Filename</th><th>Taken at</th><th>Updated</th>
+        <th></th><th>Source</th><th>Filename</th><th>Taken at</th><th>Updated</th>
       </tr>
     </thead>
     <tbody>
       <% @recent_images.each do |img| %>
         <tr>
           <td><img class="thumb" loading="lazy" src="<%= img.url %>" alt=""></td>
-          <td><a href="<%= admin_album_path(img.album_id) %>"><%= img.album.name %></a></td>
+          <td><a href="<%= admin_source_path(img.source_id) %>"><%= img.source.name %></a></td>
           <td class="mono"><%= img.filename %></td>
           <td class="mono"><%= img.taken_at&.strftime("%Y-%m-%d %H:%M") || "—" %></td>
           <td class="mono"><%= img.updated_at.strftime("%Y-%m-%d %H:%M") %></td>
@@ -150,4 +95,63 @@
       <% end %>
     </tbody>
   </table>
+<% end %>
+
+<% if @live_screens.any? %>
+  <h3>Live screens</h3>
+  <div class="screen-grid">
+    <% @live_screens.each do |s| %>
+      <% online = s.last_seen_at && (Time.current - s.last_seen_at) < 60 %>
+      <div class="screen-card">
+        <div class="screen-card-head">
+          <span class="screen-dot <%= 'online' if online %>"></span>
+          <span class="screen-code"><%= s.code %></span>
+          <span class="screen-nick"><%= s.nickname.presence || "no nickname" %></span>
+        </div>
+        <div class="screen-preview">
+          <% if s.current_image %>
+            <img src="<%= s.current_image.url %>" loading="lazy"
+                 data-screen-id="<%= s.id %>" data-current-image-id="<%= s.current_image_id %>" alt="">
+          <% else %>
+            <span data-screen-id="<%= s.id %>" data-current-image-id="">Idle</span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <script>
+    async function refreshLive() {
+      try {
+        const r = await fetch("/admin/screens.json");
+        const j = await r.json();
+        const byId = new Map();
+        for (const s of j.screens) byId.set(String(s.id), s);
+        document.querySelectorAll(".screen-preview [data-screen-id]").forEach(node => {
+          const s = byId.get(node.dataset.screenId);
+          if (!s) return;
+          const newId = s.current_image ? String(s.current_image.id) : "";
+          if (node.dataset.currentImageId === newId) return;
+          const container = node.parentElement;
+          container.innerHTML = "";
+          if (s.current_image) {
+            const img = document.createElement("img");
+            img.src = s.current_image.url;
+            img.loading = "lazy";
+            img.dataset.screenId = String(s.id);
+            img.dataset.currentImageId = newId;
+            img.alt = "";
+            container.appendChild(img);
+          } else {
+            const span = document.createElement("span");
+            span.dataset.screenId = String(s.id);
+            span.dataset.currentImageId = "";
+            span.textContent = "Idle";
+            container.appendChild(span);
+          }
+        });
+      } catch (e) {}
+    }
+    setInterval(refreshLive, 3000);
+  </script>
 <% end %>

@@ -12,26 +12,21 @@
       background: #000;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      /* Hide the mouse cursor — this is a kiosk display, no pointer expected */
+      cursor: none;
     }
+    html *, body * { cursor: none !important; }
 
-    #stage {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-    }
+    #stage { position: relative; width: 100vw; height: 100vh; }
 
     .slot {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
       opacity: 0;
       transition: opacity 0.8s ease-in-out;
       pointer-events: none;
     }
     .slot.active { opacity: 1; }
-
     .slot img {
       max-width: 100vw; max-height: 100vh;
       width: auto; height: auto;
@@ -39,17 +34,34 @@
       display: block;
     }
 
+    /* Web source: iframe in an overflow-hidden wrapper. The iframe
+       sees a (1/zoom) × viewport container that we then scale back up
+       by `zoom`, so a desktop-styled page fills a 4K kiosk. zoom = 1
+       behaves identically to before. */
+    #web-wrap {
+      --zoom: 1;
+      position: fixed; inset: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    #web-frame {
+      width:  calc(100vw / var(--zoom));
+      height: calc(100vh / var(--zoom));
+      border: none;
+      display: block;
+      transform: scale(var(--zoom));
+      transform-origin: top left;
+    }
+
     #status {
       position: fixed;
-      bottom: 16px;
-      right: 16px;
+      bottom: 16px; right: 16px;
       color: rgba(255,255,255,0.35);
       font-size: 13px;
       pointer-events: none;
       user-select: none;
     }
 
-    /* ── Screen code (Chromecast-style) ─────────────────────────────── */
     #screen-tag {
       position: fixed;
       top: clamp(16px, 1.4vw, 40px);
@@ -66,11 +78,10 @@
       pointer-events: none;
       user-select: none;
       opacity: 0.5;
-      transition: opacity 0.3s;
+      z-index: 4;
     }
     #screen-tag .nick { opacity: 0.75; margin-right: 8px; letter-spacing: 0.3px; font-weight: 500; }
 
-    /* Splash overlay shown until the first image is on screen */
     #boot-overlay {
       position: fixed;
       inset: 0;
@@ -117,13 +128,11 @@
     }
     #empty .dim { color: rgba(255,255,255,0.4); font-size: 14px; }
 
-    /* ── Timeline (birthday mode) ─────────────────────────────────────── */
+    /* ── Timeline (birthday mode, photos only) ──────────────────────── */
     #timeline {
       position: fixed;
       left: 0; right: 0; bottom: 0;
-      padding: clamp(14px, 0.9vw, 28px)
-               clamp(100px, 5vw, 200px)
-               clamp(18px, 1.1vw, 36px);
+      padding: clamp(14px, 0.9vw, 28px) clamp(100px, 5vw, 200px) clamp(18px, 1.1vw, 36px);
       background: linear-gradient(to top,
                   rgba(0,0,0,0.78) 0%,
                   rgba(0,0,0,0.55) 60%,
@@ -144,11 +153,9 @@
       border-radius: 999px;
       margin: clamp(30px, 2.2vw, 64px) 0 clamp(12px, 0.7vw, 24px);
     }
-
     .tl-marker {
       --mw: clamp(4px, 0.22vw, 8px);
-      position: absolute;
-      top: 50%;
+      position: absolute; top: 50%;
       width: var(--mw); height: var(--mw);
       margin-left: calc(var(--mw) / -2);
       margin-top:  calc(var(--mw) / -2);
@@ -162,7 +169,6 @@
       box-shadow: 0 0 clamp(12px, 0.7vw, 24px) rgba(255,216,74,0.6);
       z-index: 2;
     }
-
     #tl-age {
       position: absolute;
       bottom: clamp(16px, 0.9vw, 32px);
@@ -179,15 +185,12 @@
     }
     #tl-age::after {
       --tw: clamp(8px, 0.45vw, 16px);
-      content: "";
-      position: absolute;
-      left: 50%;
-      bottom: calc(var(--tw) / -2);
+      content: ""; position: absolute;
+      left: 50%; bottom: calc(var(--tw) / -2);
       transform: translateX(-50%) rotate(45deg);
       width: var(--tw); height: var(--tw);
       background: rgba(255,216,74,0.95);
     }
-
     #tl-labels {
       display: flex; justify-content: space-between; align-items: center;
       font-size: clamp(11px, 0.65vw, 24px);
@@ -210,8 +213,6 @@
   </style>
 </head>
 <body>
-  <!-- Boot overlay shows the Chromecast-style screen code until the first
-       image is loaded; small persistent tag in the corner after that. -->
   <div id="boot-overlay">
     <div class="label">Slideshow</div>
     <div class="code"><%= @screen.code %></div>
@@ -226,12 +227,97 @@
     <%= @screen.code %>
   </div>
 
-  <% if @total.zero? %>
+  <% if @mode == :web %>
+    <!-- ───────────── WEB SOURCE: fullscreen iframe ───────────── -->
+    <div id="web-wrap" style="--zoom: <%= @source&.zoom || 1.0 %>;">
+      <iframe id="web-frame"
+              src="<%= @web_url %>"
+              allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
+              referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+
+    <script type="module">
+      import { subscribeChannel } from "/javascript/cable.js";
+
+      const SCREEN_ID    = <%= @screen.id %>;
+      const PROXIED      = <%= @web_scroll_enabled ? 'true' : 'false' %>;
+      const bootOverlay  = document.getElementById("boot-overlay");
+      const screenTag    = document.getElementById("screen-tag");
+      const webFrame     = document.getElementById("web-frame");
+      let primed         = <%= @screen.primed %>;
+
+      function revealStage() {
+        bootOverlay.classList.add("gone");
+        screenTag.hidden = false;
+        setTimeout(() => bootOverlay.remove(), 700);
+      }
+
+      // When the iframe is loaded through our same-origin proxy
+      // (scroll_enabled = true) we can drive its content directly with
+      // contentWindow.scrollBy. The proxy also injects a postMessage
+      // listener, so the indirect path works too. For direct
+      // cross-origin iframes we just fall back to postMessage (which is
+      // a no-op unless the page listens).
+      function scrollBy(direction) {
+        // One tap = 40% of the viewport
+        const pixels = Math.round(window.innerHeight * 0.4) * direction;
+        if (PROXIED) {
+          try {
+            webFrame.contentWindow.scrollBy({ top: pixels, behavior: "smooth" });
+            return;
+          } catch (e) {}
+        }
+        try {
+          webFrame.contentWindow.postMessage(
+            { type: "slideshow:scroll", direction, pixels },
+            "*"
+          );
+        } catch (e) {}
+      }
+
+      function reloadPage() {
+        const src = webFrame.getAttribute("src");
+        webFrame.src = "about:blank";
+        setTimeout(() => { webFrame.src = src; }, 30);
+      }
+
+      if (primed) revealStage();
+
+      function appliesToMe(data) {
+        if (data.target_screen_ids == null) return true;
+        if (!Array.isArray(data.target_screen_ids)) return false;
+        return data.target_screen_ids.includes(SCREEN_ID);
+      }
+
+      subscribeChannel("SlideshowChannel", {
+        received(data) {
+          if (!data || !appliesToMe(data)) return;
+          const targetedAtMe = Array.isArray(data.target_screen_ids) &&
+                               data.target_screen_ids.includes(SCREEN_ID);
+          if (!primed && targetedAtMe) { primed = true; revealStage(); }
+
+          switch (data.action) {
+            case "set_source":
+              location.reload();
+              break;
+            case "scroll":
+              scrollBy(parseInt(data.delta, 10) || 0);
+              break;
+            case "reload_page":
+              reloadPage();
+              break;
+          }
+        }
+      });
+    </script>
+
+  <% elsif @total.zero? %>
+    <!-- ───────────── No photos available ───────────── -->
     <div id="empty">
       <div><%= @indexing ? "Indexing your photos…" : "No images found." %></div>
       <div class="dim">
         <%= @indexing ? "This page will reload automatically once images are available."
-                      : "Add JPEGs to slides/ (optionally in subfolders for albums)." %>
+                      : "Add JPEGs to slides/ (optionally in subfolders for sources)." %>
       </div>
     </div>
     <% if @indexing %>
@@ -246,7 +332,9 @@
         setInterval(check, 3000);
       </script>
     <% end %>
+
   <% else %>
+    <!-- ───────────── PHOTOS SOURCE: existing 2-slot crossfade ───────────── -->
     <div id="stage">
       <div class="slot active" id="slot-a"><img alt=""></div>
       <div class="slot"        id="slot-b"><img alt=""></div>
@@ -291,7 +379,6 @@
       const CFG = JSON.parse(document.getElementById("boot").textContent);
       const SCREEN_ID = CFG.screen_id;
 
-      // ── Playlist (sparse array of metadata, keyed by playlist index) ──
       const playlist     = new Array(CFG.total);
       let   total        = CFG.total;
       const fetchedPages = new Set();
@@ -321,7 +408,6 @@
         return playlist[idx];
       }
 
-      // ── Image prefetch cache (bounded) ─────────────────────────────────
       const prefetchCache = new Map();
       const PREFETCH_MAX  = 6;
 
@@ -338,7 +424,6 @@
         }
       }
 
-      // ── 2-slot crossfade (serialized) ──────────────────────────────────
       const slots = [
         document.getElementById("slot-a"),
         document.getElementById("slot-b")
@@ -408,7 +493,6 @@
         }
       }
 
-      // ── Report current image back to the server (for admin live preview) ─
       let reportTimer = null;
       function reportState() {
         clearTimeout(reportTimer);
@@ -426,7 +510,6 @@
         }, 250);
       }
 
-      // ── Auto-advance ───────────────────────────────────────────────────
       let delay    = (CFG.delay_seconds || 5) * 1000;
       let playing  = CFG.playing !== false;
       let playMode = CFG.play_mode === "random" ? "random" : "linear";
@@ -452,7 +535,7 @@
           `${icon} ${currentIdx + 1} / ${total}`;
       }
 
-      // ── Timeline ───────────────────────────────────────────────────────
+      // ── Timeline ────────────────────────────────────────────────────
       const timelineEl  = document.getElementById("timeline");
       const trackEl     = document.getElementById("tl-track");
       const ageEl       = document.getElementById("tl-age");
@@ -504,7 +587,6 @@
           markers.push(m);
         }
         trackEl.appendChild(frag);
-
         timelineEl.classList.add("visible");
         timelineEl.setAttribute("aria-hidden", "false");
         updateTimelineActive();
@@ -513,7 +595,6 @@
       function updateTimelineActive() {
         if (!birthdayMode || !birthday) { updateLocationLabel(); return; }
         markers.forEach((m, i) => m.classList.toggle("active", i === currentIdx));
-
         const iso = (timelineDates && timelineDates[currentIdx]) ||
                     (currentMeta && currentMeta.taken_at);
         if (iso) {
@@ -537,7 +618,6 @@
       }
 
       function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
       function monthsBetween(from, to) {
         let m = (to.getFullYear() - from.getFullYear()) * 12 +
                 (to.getMonth() - from.getMonth());
@@ -551,12 +631,7 @@
         return years === 1 ? "1 year" : `${years} years`;
       }
 
-      // ── Wait-for-cast ────────────────────────────────────────────────
-      // A brand-new screen (primed=false) stays on the splash showing its
-      // code until a remote talks to it. Once primed (server-side, persisted)
-      // it auto-resumes on subsequent reloads, just like before.
       let primed = !!CFG.primed;
-
       async function wakeUp() {
         if (primed) return;
         primed = true;
@@ -565,7 +640,6 @@
         startTimer();
       }
 
-      // ── Boot ───────────────────────────────────────────────────────────
       (async () => {
         await Promise.all([ensureLoaded(0), fetchTimelineDates()]);
         rebuildTimeline();
@@ -573,13 +647,9 @@
           await show(0);
           startTimer();
         }
-        // else: leave the boot overlay up; we'll wake up on the first
-        // command targeted at this screen.
       })();
 
-      // ── Action Cable (filter incoming by target_screen_id) ─────────────
       function appliesToMe(data) {
-        // null/undefined target_screen_ids means "every screen"
         if (data.target_screen_ids == null) return true;
         if (!Array.isArray(data.target_screen_ids)) return false;
         return data.target_screen_ids.includes(SCREEN_ID);
@@ -588,24 +658,12 @@
       subscribeChannel("SlideshowChannel", {
         received(data) {
           if (!data) return;
-
-          // Album-list changes are global (the playlist scope doesn't matter)
-          if (data.action === "albums_changed") return;
-
+          if (data.action === "sources_changed") return;
           if (!appliesToMe(data)) return;
 
-          // If a remote is talking specifically to this screen, wake it up.
-          // (Global "to everyone" broadcasts — like birthday-mode toggles —
-          // do not.)
           const targetedAtMe = Array.isArray(data.target_screen_ids) &&
                                data.target_screen_ids.includes(SCREEN_ID);
-          if (!primed && targetedAtMe) {
-            // wake first, then keep processing this same command.
-            wakeUp();
-          }
-
-          // A bare "wake" carries no other payload — it's just the kick to
-          // bring a freshly-grouped screen out of the splash.
+          if (!primed && targetedAtMe) wakeUp();
           if (data.action === "wake") return;
 
           switch (data.action) {
@@ -639,8 +697,7 @@
               birthday = data.birthday || null;
               rebuildTimeline();
               break;
-            case "set_album":
-              // Playlist scope changed; reload to start fresh with the new album.
+            case "set_source":
               location.reload();
               break;
             case "location_resolved":

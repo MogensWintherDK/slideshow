@@ -275,6 +275,45 @@
     }
     .seg-btn.active { background: var(--accent); color: #fff; }
 
+    /* Page-nav arrows (Web sources) */
+    .web-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .nav-btn {
+      height: 80px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 32px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background 0.12s, transform 0.08s;
+    }
+    .nav-btn:active { transform: scale(0.96); background: var(--surface2); }
+    .nav-btn .label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+    }
+    .reload-btn {
+      width: 100%;
+      height: 52px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: background 0.12s, transform 0.08s;
+    }
+    .reload-btn:active { transform: scale(0.98); background: var(--surface2); }
+
     .pick-list { display: flex; flex-direction: column; gap: 6px; }
     .pick-btn {
       display: flex; align-items: center; justify-content: space-between;
@@ -416,11 +455,11 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Album</div>
-      <div id="album-list" class="pick-list"></div>
+      <div class="card-title">Source</div>
+      <div id="source-list" class="pick-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-for-types="photos immich">
       <div class="card-title">Playback</div>
       <button id="play-pause-btn">
         <span id="pp-icon">&#9208;</span>
@@ -434,7 +473,16 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-for-types="web">
+      <div class="card-title">Page Navigation</div>
+      <div class="web-nav">
+        <button class="nav-btn" data-scroll="-1" title="Scroll up">&uarr;</button>
+        <button class="nav-btn" data-scroll="1"  title="Scroll down">&darr;</button>
+      </div>
+      <button id="reload-page-btn" class="reload-btn">&#x21bb; Reload page</button>
+    </div>
+
+    <div class="card" data-for-types="photos immich">
       <div class="card-title">Play Mode</div>
       <div class="segmented" id="play-mode">
         <button class="seg-btn" data-mode="linear">Linear</button>
@@ -442,12 +490,12 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-for-types="photos immich">
       <div class="card-title">Navigation</div>
       <button id="reset-btn">&#8617; Reset to beginning</button>
     </div>
 
-    <div class="card">
+    <div class="card" data-for-types="photos immich">
       <div class="card-title">Slide Delay</div>
       <div class="delay-row">
         <div>
@@ -468,7 +516,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-for-types="photos immich">
       <div class="card-title">Birthday Mode</div>
       <div class="toggle-row">
         <span class="toggle-label">Show timeline</span>
@@ -486,8 +534,7 @@
     <%= {
           command_url:    remote_command_path,
           settings_url:   remote_settings_path,
-          settings:       @settings,
-          albums:         @albums,
+          sources:        @sources,
           screens:        @screens,
           groups:         @groups
         }.to_json.html_safe %>
@@ -498,10 +545,9 @@
 
     const CFG    = JSON.parse(document.getElementById("boot").textContent);
     const STATE  = {
-      albums:   CFG.albums,
+      sources:  CFG.sources,
       screens:  CFG.screens,
       groups:   CFG.groups,
-      settings: CFG.settings,
       selectedGroupId: null  // null → picker view
     };
 
@@ -645,11 +691,11 @@
           meta.appendChild(pill);
         }
 
-        // Album label
-        const album = STATE.albums.find(a => a.id === g.selected_album_id);
-        const albumLabel = document.createElement("span");
-        albumLabel.textContent = (album ? album.name : "All albums") + " · " + g.play_mode + " · " + g.delay_seconds + "s";
-        meta.appendChild(albumLabel);
+        // Source label
+        const source = STATE.sources.find(a => a.id === g.selected_source_id);
+        const sourceLabel = document.createElement("span");
+        sourceLabel.textContent = (source ? source.name : "All photos sources") + " · " + g.play_mode + " · " + g.delay_seconds + "s";
+        meta.appendChild(sourceLabel);
 
         card.appendChild(meta);
         card.addEventListener("click", () => {
@@ -663,7 +709,22 @@
     // ── Control view ──────────────────────────────────────────────────
     const controlTitle    = document.getElementById("control-title");
     const controlSubtitle = document.getElementById("control-subtitle");
-    const albumList       = document.getElementById("album-list");
+    const sourceList      = document.getElementById("source-list");
+
+    // Look up which source the group has selected; null means
+    // "all photos sources combined", which we treat as photos for UI.
+    function selectedSourceType(g) {
+      if (!g || g.selected_source_id == null) return "photos";
+      const src = STATE.sources.find(s => s.id === g.selected_source_id);
+      return src ? src.type : "photos";
+    }
+
+    function applyControlVisibility(sourceType) {
+      document.querySelectorAll("#view-control [data-for-types]").forEach(el => {
+        const types = el.dataset.forTypes.split(/\s+/);
+        el.hidden = !types.includes(sourceType);
+      });
+    }
 
     function renderControl() {
       const g = currentGroup();
@@ -674,37 +735,43 @@
         ? "1 screen"
         : `${g.screens.length} screens`;
 
-      renderAlbumList(g);
-      renderPlayPause(g);
-      renderPlayMode(g);
-      renderDelay(g);
-      renderBirthday();
+      const sourceType = selectedSourceType(g);
+      applyControlVisibility(sourceType);
+
+      renderSourceList(g);
+      if (sourceType !== "web") {
+        renderPlayPause(g);
+        renderPlayMode(g);
+        renderDelay(g);
+        renderBirthday();
+      }
     }
 
-    function renderAlbumList(g) {
-      albumList.innerHTML = "";
-      const opts = [{ id: null, name: "All albums" }].concat(STATE.albums.map(a => ({ id: a.id, name: a.name, type: a.type })));
+    function renderSourceList(g) {
+      sourceList.innerHTML = "";
+      const opts = [{ id: null, name: "All photos sources", type: null }]
+                     .concat(STATE.sources.map(a => ({ id: a.id, name: a.name, type: a.type })));
       for (const opt of opts) {
         const btn = document.createElement("button");
-        const isActive = (opt.id === null && g.selected_album_id == null) ||
-                         (opt.id != null && g.selected_album_id === opt.id);
+        const isActive = (opt.id === null && g.selected_source_id == null) ||
+                         (opt.id != null && g.selected_source_id === opt.id);
         btn.className = "pick-btn" + (isActive ? " active" : "");
-        btn.dataset.albumId = opt.id == null ? "" : String(opt.id);
+        btn.dataset.sourceId = opt.id == null ? "" : String(opt.id);
 
         const name = document.createElement("span");
         name.textContent = opt.name;
         btn.appendChild(name);
 
-        if (opt.type && opt.type !== "local") {
+        if (opt.type) {
           const tag = document.createElement("span");
           tag.className = "pick-tag";
           tag.textContent = opt.type;
           btn.appendChild(tag);
         }
         btn.addEventListener("click", () => {
-          send({ action_name: "set_album", album_id: btn.dataset.albumId });
+          send({ action_name: "set_source", source_id: btn.dataset.sourceId });
         });
-        albumList.appendChild(btn);
+        sourceList.appendChild(btn);
       }
     }
 
@@ -877,6 +944,17 @@
       });
     });
 
+    // ── Web Page Navigation ──────────────────────────────────────────────
+    document.querySelectorAll(".nav-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        send({ action_name: "scroll", delta: parseInt(btn.dataset.scroll, 10) });
+      });
+    });
+
+    document.getElementById("reload-page-btn").addEventListener("click", () => {
+      send({ action_name: "reload_page" });
+    });
+
     document.querySelectorAll("#play-mode .seg-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         send({ action_name: "set_play_mode", mode: btn.dataset.mode });
@@ -922,10 +1000,9 @@
       try {
         const r = await fetch(CFG.settings_url);
         const j = await r.json();
-        STATE.settings = j.settings;
-        STATE.albums   = j.albums;
-        STATE.screens  = j.screens;
-        STATE.groups   = j.groups;
+        if (Array.isArray(j.sources)) STATE.sources = j.sources;
+        if (Array.isArray(j.screens)) STATE.screens = j.screens;
+        if (Array.isArray(j.groups))  STATE.groups  = j.groups;
         rerender();
       } catch (e) {}
     }
@@ -954,8 +1031,8 @@
       disconnected() { dot.className = "";          label.textContent = "Disconnected"; },
       received(data) {
         if (!data) return;
-        if (data.action === "albums_changed" && Array.isArray(data.albums)) {
-          STATE.albums = data.albums;
+        if (data.action === "sources_changed" && Array.isArray(data.sources)) {
+          STATE.sources = data.sources;
           rerender();
           return;
         }
@@ -977,7 +1054,7 @@
           case "pause":         if (g) { g.playing = false; touched = true; } break;
           case "set_delay":     if (g) { g.delay_seconds = data.delay; touched = true; } break;
           case "set_play_mode": if (g) { g.play_mode = data.mode; touched = true; } break;
-          case "set_album":     if (g) { g.selected_album_id = data.album_id; touched = true; } break;
+          case "set_source":    if (g) { g.selected_source_id = data.source_id; touched = true; } break;
           case "set_birthday_mode": if (g) { g.birthday_mode = !!data.enabled; touched = true; } break;
           case "set_birthday":      if (g) { g.birthday = data.birthday || null; touched = true; } break;
         }

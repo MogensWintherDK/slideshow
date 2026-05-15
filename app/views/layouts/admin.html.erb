@@ -175,7 +175,9 @@
       padding: 2px 8px;
       border-radius: 6px;
     }
-    .tag.local { background: rgba(10,132,255,0.18); color: #75b8ff; }
+    .tag.photos { background: rgba(10,132,255,0.18); color: #75b8ff; }
+    .tag.web    { background: rgba(50,215,75,0.18);  color: #4fd96a; }
+    .tag.immich { background: rgba(191,90,242,0.18); color: #d49bff; }
 
     button, .btn {
       display: inline-flex;
@@ -335,11 +337,12 @@
     <h1>Slideshow Admin</h1>
     <nav>
       <a href="<%= admin_path %>"           class="<%= 'active' if active == admin_path %>">Dashboard</a>
-      <a href="<%= admin_albums_path %>"    class="<%= 'active' if active.start_with?(admin_albums_path) %>">Albums</a>
+      <a href="<%= admin_sources_path %>"   class="<%= 'active' if active.start_with?(admin_sources_path) %>">Sources</a>
       <a href="<%= admin_images_path %>"    class="<%= 'active' if active.start_with?(admin_images_path) %>">Images</a>
       <a href="<%= admin_locations_path %>" class="<%= 'active' if active.start_with?(admin_locations_path) %>">Locations</a>
       <a href="<%= admin_screens_path %>"   class="<%= 'active' if active.start_with?(admin_screens_path) %>">Screens</a>
       <a href="<%= admin_groups_path %>"    class="<%= 'active' if active.start_with?(admin_groups_path) %>">Groups</a>
+      <a href="<%= admin_settings_path %>"  class="<%= 'active' if active == admin_settings_path %>">Settings</a>
     </nav>
     <div class="spacer"></div>
     <div class="ext">

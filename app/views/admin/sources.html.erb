@@ -1,0 +1,172 @@
+<h2>Sources <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;"><%= @sources.length %> total</span></h2>
+
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-top: 0;">Add a new source</h3>
+
+  <%= form_with url: admin_sources_path, method: :post, local: true do |f| %>
+    <div style="display: grid; gap: 12px; grid-template-columns: 1fr 1fr;">
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="muted" style="font-size: 12px;">Name (optional for Immich — defaults to album name)</span>
+        <%= f.text_field :name,
+              value: @new_source.name,
+              placeholder: "e.g. Family vacation, BBC News" %>
+      </label>
+
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="muted" style="font-size: 12px;">Type</span>
+        <select name="source_type" id="source-type-select"
+                style="height: 38px; background: #2c2c2e; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0 10px;">
+          <option value="photos" <%= "selected" if @new_source.source_type == "photos" %>>Photos (local folder)</option>
+          <option value="web"    <%= "selected" if @new_source.source_type == "web"    %>>Web (iframe URL)</option>
+          <option value="immich" <%= "selected" if @new_source.source_type == "immich" %>>Immich Photos</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="photos-fields" style="margin-top: 12px;">
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="muted" style="font-size: 12px;">
+          Folder (relative to <code><%= Image.slides_root %></code>; leave empty for the Default root)
+        </span>
+        <%= f.text_field :path, value: @new_source.path,
+              placeholder: "e.g. holiday or family/kids" %>
+      </label>
+    </div>
+
+    <div id="web-fields" style="margin-top: 12px;" hidden>
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="muted" style="font-size: 12px;">URL (loaded in a fullscreen iframe)</span>
+        <%= f.url_field :url, value: @new_source.url,
+              placeholder: "https://example.com/dashboard" %>
+      </label>
+      <label style="display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px;">
+        <%= f.check_box :scroll_enabled %>
+        Enable scroll control
+        <span class="muted">— routes the page through this server's proxy so the remote can scroll it. May break sites that need cookies or strict CORS.</span>
+      </label>
+
+      <label style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
+        <span class="muted" style="font-size: 12px;">
+          Zoom (e.g. 1.5 or 2 for a 4K kiosk; 1 = no zoom)
+        </span>
+        <%= f.number_field :zoom,
+              value: @new_source.zoom || 1.0,
+              step: 0.1, min: 0.25, max: 8.0,
+              style: "max-width: 120px;" %>
+      </label>
+    </div>
+
+    <div id="immich-fields" style="margin-top: 12px;" hidden>
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="muted" style="font-size: 12px;">Immich album (from <code><%= ImmichClient.base_url %></code>)</span>
+        <select name="external_id" id="immich-album-select"
+                style="height: 38px; background: #2c2c2e; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0 10px;">
+          <option value="">Pick the source type "Immich Photos" to load albums…</option>
+        </select>
+      </label>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <%= f.submit "Add source", class: "btn" %>
+      <span class="muted" style="font-size: 12px; margin-left: 10px;">
+        After adding, pick the source in the phone remote to play it on a screen.
+      </span>
+    </div>
+  <% end %>
+
+  <script>
+    (function() {
+      const sel  = document.getElementById("source-type-select");
+      const pf   = document.getElementById("photos-fields");
+      const wf   = document.getElementById("web-fields");
+      const imf  = document.getElementById("immich-fields");
+      const imSel = document.getElementById("immich-album-select");
+      let immichLoaded = false;
+
+      async function loadImmichAlbums() {
+        if (immichLoaded) return;
+        imSel.innerHTML = "<option value=''>Loading albums from Immich…</option>";
+        try {
+          const r = await fetch("<%= admin_immich_albums_path %>");
+          const j = await r.json();
+          if (!r.ok) {
+            imSel.innerHTML = `<option value=''>${j.error || "Error loading albums"}</option>`;
+            return;
+          }
+          imSel.innerHTML = "<option value=''>Choose an album…</option>";
+          for (const a of (j.albums || [])) {
+            const opt = document.createElement("option");
+            opt.value = a.id;
+            opt.textContent = `${a.name} (${a.asset_count} photo${a.asset_count === 1 ? "" : "s"})${a.shared ? " · shared" : ""}`;
+            imSel.appendChild(opt);
+          }
+          immichLoaded = true;
+        } catch (e) {
+          imSel.innerHTML = `<option value=''>Failed to load: ${e.message}</option>`;
+        }
+      }
+
+      function apply() {
+        const t = sel.value;
+        pf.hidden  = (t !== "photos");
+        wf.hidden  = (t !== "web");
+        imf.hidden = (t !== "immich");
+        if (t === "immich") loadImmichAlbums();
+      }
+      sel.addEventListener("change", apply);
+      apply();
+    })();
+  </script>
+</div>
+
+<% if @sources.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Location</th>
+        <th class="num">Images</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @sources.each do |s| %>
+        <tr>
+          <td>
+            <% if s.source_type == "web" %>
+              <strong><%= s.name %></strong>
+            <% else %>
+              <a href="<%= admin_source_path(s) %>"><%= s.name %></a>
+            <% end %>
+          </td>
+          <td><span class="tag <%= s.source_type %>"><%= s.source_type %></span></td>
+          <td class="mono">
+            <% case s.source_type %>
+            <% when "photos" %>
+              <%= s.path.presence || "(root)" %>
+            <% when "web" %>
+              <%= s.url %>
+            <% when "immich" %>
+              album <%= s.external_id %>
+            <% end %>
+          </td>
+          <td class="num"><%= s.image_count %></td>
+          <td class="mono"><%= s.created_at.strftime("%Y-%m-%d %H:%M") %></td>
+          <td>
+            <%= button_to "Delete",
+                  admin_source_path(s),
+                  method: :delete,
+                  class: "btn danger",
+                  form: { onsubmit: "return confirm('Delete source #{s.name}? This also removes any indexed images for it.');" } %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <div class="card muted">
+    No sources yet. Drop JPEGs into <code><%= Image.slides_root %></code> or add one above.
+  </div>
+<% end %>

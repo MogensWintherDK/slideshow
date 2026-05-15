@@ -5,6 +5,16 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# Optional: Immich integration.
+# The recommended way to configure Immich is the admin Settings page:
+#   http://YOUR-IP:3000/admin/settings
+# Paste your API key there once and it's stored in the database.
+#
+# Env vars are also supported as a fallback:
+#   IMMICH_API_KEY=xxxxxx bin/start
+#   IMMICH_BASE_URL=https://your-immich.example   (optional, default https://immich.mowin.dk)
+# Values saved on the Settings page take precedence over env vars.
+
 # 1. Make sure bundler is available
 if ! command -v bundle >/dev/null 2>&1; then
   echo "Installing bundler..."

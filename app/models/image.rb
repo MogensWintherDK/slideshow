@@ -1,33 +1,27 @@
 class Image < ApplicationRecord
-  belongs_to :album
+  belongs_to :source
 
-  validates :filename, presence: true,
-                       uniqueness: { scope: :album_id, case_sensitive: false }
+  validates :filename, presence: true
 
-  # Public URL the browser uses. Goes through Rails so we can set proper
-  # cache headers and so files don't sit in public/. The ?v= parameter
-  # is the updated_at timestamp — when an image record is touched (e.g.
-  # re-indexed because the file changed) the URL changes and the browser
-  # refetches; otherwise it keeps the cached bytes for up to a year.
+  # Public URL the browser uses. The same path shape is used for both
+  # photos and Immich sources — only the server-side serving differs.
   def url
-    case album.album_type
-    when "local"
-      "/slideshow/albums/#{album_id}/images/#{id}?v=#{updated_at.to_i}"
+    case source.source_type
+    when "photos", "immich"
+      "/slideshow/sources/#{source_id}/images/#{id}?v=#{updated_at.to_i}"
     else
-      raise "Unknown album_type: #{album.album_type.inspect}"
+      raise "Cannot serve image from #{source.source_type.inspect} source"
     end
   end
 
-  # Filesystem path the controller reads from. Local-album only.
+  # Filesystem path the controller reads from (photos sources only).
   def local_path
-    raise "Not a local image" unless album.album_type == "local"
+    raise "Not a photos image" unless source.photos?
     base = Image.slides_root
-    base = base.join(album.path) if album.path.present?
+    base = base.join(source.path) if source.path.present?
     base.join(filename)
   end
 
-  # Root folder for local photos. Lives at the project root (not in
-  # public/) so files are never served directly by the static handler.
   def self.slides_root
     Rails.root.join("slides")
   end

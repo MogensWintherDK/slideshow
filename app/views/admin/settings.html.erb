@@ -1,33 +1,53 @@
-<h2>Settings <span class="muted" style="font-weight: 400; font-size: 14px; margin-left: 8px;">legacy</span></h2>
+<h2>Settings</h2>
 
-<div class="card muted" style="margin-bottom: 16px; font-size: 13px;">
-  Per-group settings (album, play mode, delay, play/pause, birthday timeline) are stored on the
-  <a href="<%= admin_groups_path %>">screen groups</a>. Per-screen identity (code, nickname, last seen, current image) is on the
-  <a href="<%= admin_screens_path %>">screens</a>. The <code>settings</code> table below is retained for future global flags but currently isn't used.
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-top: 0;">Immich</h3>
+  <p class="muted" style="font-size: 13px;">
+    Configure access to an Immich server. Once an API key is set, the
+    <strong>Immich Photos</strong> source type appears in the
+    <a href="<%= admin_sources_path %>">Sources</a> page with a live album dropdown.
+    Saved here, the values are read from the database and take effect immediately —
+    no restart needed.
+  </p>
+
+  <%= form_with url: admin_settings_path, method: :patch, local: true do |f| %>
+    <div style="display: grid; gap: 12px; max-width: 560px;">
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="muted" style="font-size: 12px;">Base URL</span>
+        <%= f.url_field :immich_base_url,
+              value: @immich_base_url,
+              placeholder: @default_base_url %>
+        <span class="muted" style="font-size: 11px;">
+          Currently using: <code><%= @effective_base_url %></code>
+          <% if @immich_base_url.blank? %>(default)<% end %>
+        </span>
+      </label>
+
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="muted" style="font-size: 12px;">API key</span>
+        <%= f.password_field :immich_api_key,
+              autocomplete: "off",
+              placeholder: @immich_api_key_set ? "•••••••• (leave blank to keep current)" : "Paste your Immich API key" %>
+        <span class="muted" style="font-size: 11px;">
+          Status: <strong><%= @immich_api_key_src %></strong>
+        </span>
+        <% if @immich_api_key_set %>
+          <label style="display: inline-flex; align-items: center; gap: 6px; color: var(--danger); font-size: 12px;">
+            <%= check_box_tag :clear_immich_api_key, "1" %>
+            Clear the stored key
+          </label>
+        <% end %>
+      </label>
+
+      <div>
+        <%= f.submit "Save", class: "btn" %>
+      </div>
+    </div>
+  <% end %>
 </div>
 
-<% if @settings.any? %>
-  <table>
-    <thead>
-      <tr>
-        <th>Key</th>
-        <th>Value</th>
-        <th>Updated</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @settings.each do |s| %>
-        <tr>
-          <td class="mono"><%= s.key %></td>
-          <td class="mono">
-            <% decoded = (JSON.parse(s.value) rescue s.value) %>
-            <%= decoded.to_s.presence || "—" %>
-          </td>
-          <td class="mono"><%= s.updated_at.strftime("%Y-%m-%d %H:%M") %></td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-<% else %>
-  <div class="card muted">The settings table is currently empty.</div>
-<% end %>
+<div class="card muted" style="font-size: 13px;">
+  Per-group playback state (album, play mode, delay, play/pause, birthday timeline) lives on
+  <a href="<%= admin_groups_path %>">screen groups</a>; per-screen identity (code, nickname,
+  last-seen, current image) is on <a href="<%= admin_screens_path %>">screens</a>.
+</div>

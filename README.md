@@ -29,12 +29,24 @@ Stop the server with `Ctrl+C`.
 
 Drop JPEG files into `slides/` (at the project root — *not* inside `public/`). You have two options:
 
-- **Single album** — put JPEGs directly in `slides/`. They land in an auto-created album called `Default`.
-- **Multiple albums** — create subfolders under `slides/` (e.g. `slides/holiday/`, `slides/family/`). Each subfolder becomes a named album.
+- **Single source** — put JPEGs directly in `slides/`. They land in an auto-created Photos source called `Default`.
+- **Multiple sources** — create subfolders under `slides/` (e.g. `slides/holiday/`, `slides/family/`). Each subfolder becomes a named Photos source.
 
-Files are sorted alphabetically by filename within an album, so prefix them (`001_holiday.jpg`, `002_holiday.jpg`) if you want a specific order. The background indexer picks up new files within ~5 minutes; to force an immediate scan run `bundle exec rails runner Indexer.run`.
+Photos within a source are ordered by EXIF `taken_at` so they play oldest → newest. The background indexer picks up new files within ~5 minutes; to force an immediate scan run `bundle exec rails runner Indexer.run`.
 
 If you had photos in `public/slides/` from earlier versions, `bin/start` moves them to `slides/` for you on first run.
+
+## Sources of other types
+
+A **source** has a type. Three types are supported today:
+
+- **Photos** — the indexer-managed folders under `slides/` described above.
+- **Web** — a URL that the slideshow loads in a fullscreen iframe. Useful for dashboards, news feeds, or any web page.
+- **Immich** — link a remote Immich album. The server fetches the asset list and serves the bytes via cached proxy, so it behaves just like a Photos source on the screens.
+
+Add or remove sources from `/admin/sources`. To use Immich first go to **Settings** in the admin and paste your Immich API key (and adjust the base URL if it isn't the default `https://immich.mowin.dk`). Then on the Sources page pick the **Immich Photos** type — the album dropdown populates from your Immich server automatically. After saving, the indexer immediately pulls the album's asset list; afterwards the source behaves like a normal Photos source on the remote and the screens.
+
+`IMMICH_API_KEY` and `IMMICH_BASE_URL` can also be set as environment variables (they're used as fallbacks if nothing is configured in the admin UI).
 
 ## Remote controls
 
