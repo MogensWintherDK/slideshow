@@ -40,7 +40,6 @@ class AdminController < ApplicationController
     when "web"
       attrs[:url]            = params[:url].to_s.strip
       attrs[:scroll_enabled] = ActiveModel::Type::Boolean.new.cast(params[:scroll_enabled])
-      attrs[:zoom]           = params[:zoom].to_f.positive? ? params[:zoom].to_f : 1.0
     when "immich"
       attrs[:external_id] = params[:external_id].to_s.strip
       # Default the name to the Immich album name if the user didn't type one

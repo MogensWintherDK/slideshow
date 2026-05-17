@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_05_13_220000) do
+ActiveRecord::Schema[7.0].define(version: 2026_05_14_000000) do
   create_table "images", force: :cascade do |t|
     t.integer "source_id", null: false
     t.string "filename", null: false
@@ -82,7 +82,6 @@ ActiveRecord::Schema[7.0].define(version: 2026_05_13_220000) do
     t.string "url"
     t.string "external_id"
     t.boolean "scroll_enabled", default: false, null: false
-    t.float "zoom", default: 1.0, null: false
     t.index ["external_id"], name: "index_sources_on_external_id", unique: true, where: "external_id IS NOT NULL"
     t.index ["source_type", "path"], name: "index_sources_on_photos_path", unique: true, where: "source_type = 'photos'"
   end

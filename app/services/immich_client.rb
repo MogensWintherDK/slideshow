@@ -31,13 +31,16 @@ module ImmichClient
   def api_key
     stored = SettingsStore.read["immich_api_key"]
     return stored if stored.present?
-    ENV["IMMICH_API_KEY"]
+    env = ENV["IMMICH_API_KEY"]
+    env if env.present?
   end
 
   def base_url
     stored = SettingsStore.read["immich_base_url"]
     return stored if stored.present?
-    ENV.fetch("IMMICH_BASE_URL", DEFAULT_BASE_URL)
+    env = ENV["IMMICH_BASE_URL"]
+    return env if env.present?
+    DEFAULT_BASE_URL
   end
 
   # List albums on the server. Returns an Array of

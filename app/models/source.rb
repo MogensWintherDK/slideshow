@@ -8,7 +8,6 @@ class Source < ApplicationRecord
   validate  :path_unique_within_photos
   validate  :url_required_for_web
   validate  :external_id_required_for_immich
-  validates :zoom, numericality: { greater_than_or_equal_to: 0.25, less_than_or_equal_to: 8.0 }
 
   scope :photos, -> { where(source_type: "photos") }
   scope :web,    -> { where(source_type: "web") }

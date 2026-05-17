@@ -44,16 +44,6 @@
         Enable scroll control
         <span class="muted">— routes the page through this server's proxy so the remote can scroll it. May break sites that need cookies or strict CORS.</span>
       </label>
-
-      <label style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
-        <span class="muted" style="font-size: 12px;">
-          Zoom (e.g. 1.5 or 2 for a 4K kiosk; 1 = no zoom)
-        </span>
-        <%= f.number_field :zoom,
-              value: @new_source.zoom || 1.0,
-              step: 0.1, min: 0.25, max: 8.0,
-              style: "max-width: 120px;" %>
-      </label>
     </div>
 
     <div id="immich-fields" style="margin-top: 12px;" hidden>

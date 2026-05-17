@@ -34,12 +34,13 @@
       display: block;
     }
 
-    /* Web source: iframe in an overflow-hidden wrapper. The iframe
-       sees a (1/zoom) × viewport container that we then scale back up
-       by `zoom`, so a desktop-styled page fills a 4K kiosk. zoom = 1
-       behaves identically to before. */
+    /* Web source: iframe in an overflow-hidden wrapper. The zoom is
+       a function of the screen's own viewport — desktop (≤1920px) gets
+       no scaling, a 4K kiosk gets ~2×, ultrawides scale proportionally.
+       This means the same source looks right everywhere without any
+       per-source configuration. */
     #web-wrap {
-      --zoom: 1;
+      --zoom: max(1, calc(100vw / 1920px));
       position: fixed; inset: 0;
       overflow: hidden;
       background: #000;
@@ -229,7 +230,7 @@
 
   <% if @mode == :web %>
     <!-- ───────────── WEB SOURCE: fullscreen iframe ───────────── -->
-    <div id="web-wrap" style="--zoom: <%= @source&.zoom || 1.0 %>;">
+    <div id="web-wrap">
       <iframe id="web-frame"
               src="<%= @web_url %>"
               allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
