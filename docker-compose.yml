@@ -1,0 +1,29 @@
+# Deploy the slideshow:
+#   1. cp .env.example .env  ;  edit SECRET_KEY_BASE (mandatory) and paths
+#   2. docker compose up -d --build
+#
+# Local development on the Mac is unaffected — keep using bin/start.
+services:
+  slideshow:
+    build:
+      context: .
+    image: slideshow:latest
+    container_name: slideshow
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: "${SECRET_KEY_BASE}"
+      TZ: "${TZ:-UTC}"
+      # Passed through from the host environment / .env file only when
+      # they're set. Leave blank to configure Immich from /admin/settings
+      # instead.
+      IMMICH_API_KEY:
+      IMMICH_BASE_URL:
+    volumes:
+      # SQLite database files (production.sqlite3 lives here).
+      - "${DATABASE_PATH:-./docker-data/db}:/app/db"
+      # Photo source folders. Subdirectories become Photos sources;
+      # JPEGs in the root become the "Default" source.
+      - "${SLIDES_PATH:-./docker-data/slides}:/app/slides"

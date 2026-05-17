@@ -46,3 +46,7 @@ Thumbs.db
 # Spring / Rails caches
 /.byebug_history
 /.rspec_status
+
+# Docker
+/.env
+/docker-data/

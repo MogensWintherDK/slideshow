@@ -1,0 +1,37 @@
+# Avoid baking host-only stuff and secrets into the image.
+.git
+.gitignore
+.gitattributes
+.dockerignore
+Dockerfile
+docker-compose.yml
+docker-data
+.env
+.env.*
+!.env.example
+
+# Logs and runtime tmp — recreated inside the container
+log/*
+!log/.keep
+tmp/*
+!tmp/.keep
+
+# Database and slides come in via bind mounts, not the image
+db/*.sqlite3
+db/*.sqlite3-*
+db/*.json
+slides/*
+!slides/.keep
+public/slides/*
+!public/slides/.keep
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Bundler caches
+.bundle
+vendor/bundle

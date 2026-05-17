@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Boots the Rails server inside the container.
+#
+# Runs the same `db:prepare → server` sequence as bin/start, but
+# tailored for an unattended production process: no bundler install
+# (gems are baked into the image), logs go to stdout, the database
+# and slides folder come from bind-mounted volumes.
+set -euo pipefail
+
+# Bind-mounted directories may not exist on first boot.
+mkdir -p /app/db /app/slides
+
+echo "[entrypoint] Preparing database…"
+bundle exec rails db:prepare
+
+echo "[entrypoint] Starting Rails on 0.0.0.0:${PORT:-3000}"
+exec bundle exec rails server -b 0.0.0.0 -p "${PORT:-3000}"

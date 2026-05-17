@@ -13,7 +13,7 @@ For how it all works under the hood, see [ARCHITECTURE.md](ARCHITECTURE.md).
 - Ruby 3.0 or newer (any recent rbenv/asdf/Homebrew/mise install works)
 - That's it — Bundler, Rails, SQLite and Puma are pulled in by `bin/start`
 
-## Quick start
+## Quick start (local development)
 
 From this folder:
 
@@ -24,6 +24,32 @@ bin/start
 The script installs gems on first run, applies database migrations, prints the IPs you can reach the app on, then boots the server bound to `0.0.0.0:3000`. Re-run it any time to start the server again — subsequent runs skip the install step.
 
 Stop the server with `Ctrl+C`.
+
+## Deploying with Docker
+
+A `Dockerfile` and `docker-compose.yml` are included. The container runs Puma in production mode; the SQLite database and your photo folders come in as bind-mounted volumes so the host stays in control of the data.
+
+```
+cp .env.example .env
+# edit .env — set SECRET_KEY_BASE (run `openssl rand -hex 64`)
+# point DATABASE_PATH and SLIDES_PATH at the host folders you want
+docker compose up -d --build
+```
+
+Then open `http://YOUR-HOST:3000/`. The entrypoint runs `db:prepare` on every boot, so the first start creates `production.sqlite3` inside `DATABASE_PATH` and subsequent starts apply any new migrations.
+
+Configurable env vars (see `.env.example` for the canonical list):
+
+| Variable | Purpose |
+|---|---|
+| `SECRET_KEY_BASE` | Required. Sign Rails cookies / sessions. |
+| `DATABASE_PATH` | Host path bind-mounted to `/app/db`. |
+| `SLIDES_PATH` | Host path bind-mounted to `/app/slides`. |
+| `HOST_PORT` | Maps the container's port 3000 to a host port (default 3000). |
+| `TZ` | Container timezone, e.g. `Europe/Copenhagen`. |
+| `IMMICH_API_KEY` / `IMMICH_BASE_URL` | Optional Immich auth (you can also paste the key into `/admin/settings`). |
+
+Local development on the Mac (`bin/start`) is unaffected — the dev DB lives at `db/development.sqlite3`; the Docker DB lives at whatever `DATABASE_PATH` points to (default `./docker-data/db/production.sqlite3`). They don't collide.
 
 ## Adding your photos
 
